@@ -221,6 +221,11 @@ export const AppProvider = ({ children }) => {
     let timer;
     if (isPlayingTelemetry && routes && routes[selectedRouteKey]) {
       const maxLen = routes[selectedRouteKey].waypoints.length;
+      // Routes are resolved on a 0.25 deg grid, so a voyage is 50-300 waypoints
+      // rather than a dozen. Pace the tick so a full playback lasts about a
+      // minute regardless of route length instead of scaling with it.
+      const TARGET_PLAYBACK_MS = 60000;
+      const stepMs = Math.min(1500, Math.max(120, TARGET_PLAYBACK_MS / Math.max(1, maxLen)));
       timer = setInterval(() => {
         setCurrentVesselIndex((prev) => {
           if (prev >= maxLen - 1) {
@@ -229,7 +234,7 @@ export const AppProvider = ({ children }) => {
           }
           return prev + 1;
         });
-      }, 1500); // Step every 1.5 seconds
+      }, stepMs);
     }
     return () => clearInterval(timer);
   }, [isPlayingTelemetry, routes, selectedRouteKey]);

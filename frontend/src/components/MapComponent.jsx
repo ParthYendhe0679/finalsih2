@@ -115,12 +115,15 @@ export default function MapComponent() {
     const { west, east, south, north, rows, cols } = bounds;
 
     const elements = [];
-    // Render at a lower density (step of 3) to optimize Leaflet rendering performance
+    // The API block-reduces the 0.25 deg routing grid down to `cell_deg` (1 deg
+    // by default); step thins it further so Leaflet stays responsive.
+    const cellDeg = bounds.cell_deg || (north - south) / rows;
     const step = 3;
     for (let r = 0; r < rows; r += step) {
       for (let c = 0; c < cols; c += step) {
-        const lat = north - r * ((north - south) / rows);
-        const lon = west + c * ((east - west) / cols);
+        // Cell centres, so an overlay marker sits on the water it describes
+        const lat = north - (r + 0.5) * cellDeg;
+        const lon = west + (c + 0.5) * cellDeg;
 
         if (showWinds) {
           const windSpeed = winds[r][c];

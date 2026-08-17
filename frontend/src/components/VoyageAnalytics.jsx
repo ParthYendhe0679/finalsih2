@@ -63,10 +63,17 @@ export default function VoyageAnalytics() {
   const elapsedHours = Math.round(currentVesselIndex * hourStep);
   const remainingHours = Math.round(Math.max(0, activeRoute.total_time - elapsedHours));
   
-  const startPt = waypoints[0];
-  const endPt = waypoints[totalWaypoints - 1];
-  const totalDistance = getLocalDistance(startPt[0], startPt[1], endPt[0], endPt[1]);
-  const currentTraveled = Math.round((currentVesselIndex / (totalWaypoints - 1)) * totalDistance);
+  // Distance measured along the sailed track, not port-to-port in a straight
+  // line: routes go around land, so the great-circle gap between the two ports
+  // materially understates the passage.
+  const cumulative = [0];
+  for (let i = 1; i < totalWaypoints; i++) {
+    cumulative[i] = cumulative[i - 1] + getLocalDistance(
+      waypoints[i - 1][0], waypoints[i - 1][1], waypoints[i][0], waypoints[i][1]
+    );
+  }
+  const totalDistance = cumulative[totalWaypoints - 1];
+  const currentTraveled = Math.round(cumulative[Math.min(currentVesselIndex, totalWaypoints - 1)]);
   const remainingDistance = Math.max(0, totalDistance - currentTraveled);
 
   // Check proximity of simulated storm

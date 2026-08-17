@@ -1,13 +1,19 @@
 from contextlib import asynccontextmanager
+import numpy as np
 from fastapi import FastAPI, Depends, HTTPException, status
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
-from typing import List, Dict, Any
+from typing import List
 
 from .database import engine, Base, get_db
-from . import models, schemas, crud
+# `models` is imported for its side effect of registering the ORM tables on
+# Base.metadata, which lifespan's create_all depends on.
+from . import models, schemas, crud  # noqa: F401
 from .raster_parser import env_grid
-from .mopbd_engine import calculate_pareto_routes, DSLite, coord_to_grid, PORTS, calculate_edge_vector
+from .mopbd_engine import (
+    calculate_pareto_routes, DSLite, PORTS,
+    get_path_metrics, WEIGHT_PROFILES, RouteUnreachable,
+)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -83,13 +89,16 @@ def calculate_routes(request: schemas.RouteRequest, db: Session = Depends(get_db
     }
 
     try:
-        routes = calculate_pareto_routes(
+        return calculate_pareto_routes(
             origin=request.origin,
             destination=request.destination,
             ship_profile=ship_profile,
             custom_weights=custom_w
         )
-        return routes
+    except RouteUnreachable as e:
+        raise HTTPException(status_code=422, detail=str(e))
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -124,80 +133,80 @@ def replan_routes(request: schemas.ReplanRequest, db: Session = Depends(get_db))
     current_coord = tuple(request.path_nodes[curr_idx])
 
     # 4. Perform dynamic D* Lite repair for each weight configuration starting from current ship position
-    weight_profiles = {
-        "fastest": {"time_weight": 0.90, "fuel_weight": 0.05, "safety_weight": 0.05},
-        "fuel_optimized": {"time_weight": 0.05, "fuel_weight": 0.90, "safety_weight": 0.05},
-        "safest": {"time_weight": 0.05, "fuel_weight": 0.05, "safety_weight": 0.90},
-        "balanced": {
-            "safety_weight": request.weights.safety_weight,
-            "fuel_weight": request.weights.fuel_weight,
-            "time_weight": request.weights.time_weight
-        }
+    weight_profiles = dict(WEIGHT_PROFILES)
+    weight_profiles["balanced"] = {
+        "safety_weight": request.weights.safety_weight,
+        "fuel_weight": request.weights.fuel_weight,
+        "time_weight": request.weights.time_weight
     }
 
-    def get_path_metrics(path: List[tuple]) -> Dict[str, Any]:
-        total_time = 0.0
-        total_fuel = 0.0
-        total_risk = 0.0
-        waypoints = []
-        for idx in range(len(path)):
-            lat, lon = path[idx]
-            waypoints.append([lat, lon])
-            if idx < len(path) - 1:
-                u = coord_to_grid(lat, lon)
-                v = coord_to_grid(path[idx+1][0], path[idx+1][1])
-                t, f, r = calculate_edge_vector(u, v, ship_profile)
-                total_time += t
-                total_fuel += f
-                total_risk += r
-                
-        return {
-            "waypoints": waypoints,
-            "total_time": round(total_time, 1),
-            "total_fuel": round(total_fuel, 0),
-            "total_risk": round(total_risk, 1)
-        }
+    if request.origin not in PORTS or request.destination not in PORTS:
+        raise HTTPException(status_code=400, detail="Unknown origin or destination port.")
 
     results = {}
     origin_coord = PORTS[request.origin]
     goal_coord = PORTS[request.destination]
 
-    for key, weights in weight_profiles.items():
-        # Instantiate DSLite, run initial build
-        ds = DSLite(origin_coord, goal_coord, ship_profile, weights)
-        ds.initialize()
-        ds.compute_shortest_path()
-        
-        # Apply the weather shift and repair the path incrementally
-        ds.replan_after_weather_shift(current_coord, changed_cells)
-        
-        repaired_path = ds.get_path()
-        
-        # Prepend the already traveled path prefix to show the full voyage
-        traveled_prefix = request.path_nodes[:curr_idx]
-        full_path = traveled_prefix + repaired_path
-        
-        metrics = get_path_metrics(full_path)
-        results[key] = {
-            "weights": weights,
-            **metrics
-        }
+    try:
+        for key, weights in weight_profiles.items():
+            # Instantiate DSLite, run initial build
+            ds = DSLite(origin_coord, goal_coord, ship_profile, weights)
+            ds.initialize()
+            ds.compute_shortest_path()
+
+            # Apply the weather shift and repair the path incrementally
+            ds.replan_after_weather_shift(current_coord, changed_cells)
+
+            repaired_path = ds.get_path()
+
+            # Prepend the already traveled path prefix to show the full voyage
+            traveled_prefix = [tuple(p) for p in request.path_nodes[:curr_idx]]
+            full_path = traveled_prefix + repaired_path
+
+            results[key] = {
+                "weights": weights,
+                **get_path_metrics(full_path, ship_profile)
+            }
+    except RouteUnreachable as e:
+        raise HTTPException(status_code=422, detail=str(e))
 
     return results
 
 @app.get("/api/weather/layers")
-def get_weather_layers():
-    """Returns grid representation of wind speeds, wave heights and piracy risk for visualization."""
+def get_weather_layers(cell_deg: float = 1.0):
+    """
+    Grid representation of wind speeds, wave heights and piracy risk for map
+    overlays.
+
+    The routing grid is 0.25 deg (200 x 280), which as raw JSON is several MB and
+    far finer than the overlay needs. Layers are block-reduced to ``cell_deg``
+    (1 deg by default) using the block maximum, so a hazard is never averaged
+    away. Land cells hold 0 and therefore never raise a block's maximum.
+    """
+    stride = max(1, int(round(cell_deg / env_grid.cell_deg)))
+
+    def reduce_layer(arr):
+        rows = arr.shape[0] // stride * stride
+        cols = arr.shape[1] // stride * stride
+        trimmed = arr[:rows, :cols]
+        blocks = trimmed.reshape(rows // stride, stride, cols // stride, stride)
+        return np.round(blocks.max(axis=(1, 3)), 2).tolist()
+
+    out_rows = env_grid.height // stride
+    out_cols = env_grid.width // stride
+    out_cell = env_grid.cell_deg * stride
+
     return {
         "bounds": {
             "west": env_grid.west,
-            "east": env_grid.east,
-            "south": env_grid.south,
+            "east": env_grid.west + out_cols * out_cell,
+            "south": env_grid.north - out_rows * out_cell,
             "north": env_grid.north,
-            "rows": env_grid.height,
-            "cols": env_grid.width
+            "rows": out_rows,
+            "cols": out_cols,
+            "cell_deg": out_cell
         },
-        "winds": env_grid.winds.tolist(),
-        "waves": env_grid.waves.tolist(),
-        "piracy": env_grid.piracy.tolist()
+        "winds": reduce_layer(env_grid.winds),
+        "waves": reduce_layer(env_grid.waves),
+        "piracy": reduce_layer(env_grid.piracy)
     }
