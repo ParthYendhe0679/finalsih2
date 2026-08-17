@@ -38,20 +38,20 @@ export default function Sidebar() {
   };
 
   return (
-    <aside className="w-full lg:w-[30%] bg-brand-card/90 border-r border-brand-border flex flex-col overflow-y-auto p-5 space-y-6 select-none shrink-0">
+    <aside className="w-full lg:w-[30%] bg-white border-r border-slate-200/80 flex flex-col overflow-y-auto p-5 space-y-6 select-none shrink-0 shadow-xs">
       {/* Section A: Voyage Ports Setup */}
       <section className="space-y-3">
-        <div className="flex items-center space-x-2 border-b border-brand-border/40 pb-2">
-          <Navigation className="h-4 w-4 text-brand-glow" />
-          <h2 className="text-sm font-semibold tracking-wider text-white uppercase">Voyage & Port Setup</h2>
+        <div className="flex items-center space-x-2 border-b border-slate-100 pb-2.5">
+          <Navigation className="h-4 w-4 text-blue-600" />
+          <h2 className="text-xs font-bold tracking-wider text-slate-800 uppercase font-sans">Voyage & Port Setup</h2>
         </div>
         <div className="grid grid-cols-2 gap-3">
           <div>
-            <label className="block text-[10px] uppercase font-mono text-gray-400 mb-1">Departure Port</label>
+            <label className="block text-[11px] uppercase font-semibold text-slate-400 mb-1">Departure Port</label>
             <select
               value={origin}
               onChange={(e) => setOrigin(e.target.value)}
-              className="w-full bg-brand-bg text-sm text-gray-200 border border-brand-border rounded px-2.5 py-1.5 focus:border-brand-glow outline-none cursor-pointer"
+              className="w-full bg-slate-50 text-xs font-medium text-slate-800 border border-slate-200 rounded-xl px-3 py-2 focus:border-blue-500 focus:bg-white outline-none cursor-pointer shadow-2xs"
             >
               {portsList.map((port) => (
                 <option key={port} value={port}>{port}</option>
@@ -59,11 +59,11 @@ export default function Sidebar() {
             </select>
           </div>
           <div>
-            <label className="block text-[10px] uppercase font-mono text-gray-400 mb-1">Destination Port</label>
+            <label className="block text-[11px] uppercase font-semibold text-slate-400 mb-1">Destination Port</label>
             <select
               value={destination}
               onChange={(e) => setDestination(e.target.value)}
-              className="w-full bg-brand-bg text-sm text-gray-200 border border-brand-border rounded px-2.5 py-1.5 focus:border-brand-glow outline-none cursor-pointer"
+              className="w-full bg-slate-50 text-xs font-medium text-slate-800 border border-slate-200 rounded-xl px-3 py-2 focus:border-blue-500 focus:bg-white outline-none cursor-pointer shadow-2xs"
             >
               {portsList.map((port) => (
                 <option key={port} value={port} disabled={port === origin}>{port}</option>
@@ -75,14 +75,14 @@ export default function Sidebar() {
 
       {/* Section B: Ship Profile Loader */}
       <section className="space-y-3">
-        <div className="flex items-center justify-between border-b border-brand-border/40 pb-2">
+        <div className="flex items-center justify-between border-b border-slate-100 pb-2.5">
           <div className="flex items-center space-x-2">
-            <Ship className="h-4 w-4 text-brand-glow" />
-            <h2 className="text-sm font-semibold tracking-wider text-white uppercase">Vessel Selection</h2>
+            <Ship className="h-4 w-4 text-blue-600" />
+            <h2 className="text-xs font-bold tracking-wider text-slate-800 uppercase font-sans">Vessel Selection</h2>
           </div>
           <button
             onClick={() => setShowOverride(!showOverride)}
-            className="text-[10px] font-mono text-brand-glow hover:underline hover:text-blue-300"
+            className="text-[11px] font-semibold text-blue-600 hover:text-blue-800 transition"
           >
             {showOverride ? "[Hide Specs]" : "[Override Specs]"}
           </button>
@@ -90,11 +90,11 @@ export default function Sidebar() {
 
         <div className="space-y-3">
           <div>
-            <label className="block text-[10px] uppercase font-mono text-gray-400 mb-1">Active Ship Profile</label>
+            <label className="block text-[11px] uppercase font-semibold text-slate-400 mb-1">Active Ship Profile</label>
             <select
               value={selectedShipId}
               onChange={(e) => setSelectedShipId(e.target.value)}
-              className="w-full bg-brand-bg text-sm text-gray-200 border border-brand-border rounded px-2.5 py-1.5 focus:border-brand-glow outline-none cursor-pointer"
+              className="w-full bg-slate-50 text-xs font-medium text-slate-800 border border-slate-200 rounded-xl px-3 py-2 focus:border-blue-500 focus:bg-white outline-none cursor-pointer shadow-2xs"
             >
               {ships.map((ship) => (
                 <option key={ship.id} value={ship.id.toString()}>{ship.name} ({ship.imo})</option>
@@ -103,45 +103,45 @@ export default function Sidebar() {
           </div>
 
           {selectedShip && showOverride && (
-            <div className="bg-brand-bg/50 border border-brand-border/80 rounded p-3 space-y-2 text-xs font-mono">
+            <div className="bg-slate-50 border border-slate-200 rounded-xl p-3 space-y-2.5 text-xs font-mono">
               <div className="grid grid-cols-2 gap-2">
                 <div>
-                  <label className="block text-[9px] text-gray-400 uppercase">Displacement (tons)</label>
+                  <label className="block text-[9px] text-slate-500 uppercase font-bold">Displacement (tons)</label>
                   <input
                     type="number"
                     value={selectedShip.displacement}
                     onChange={(e) => handleOverrideChange('displacement', e.target.value)}
-                    className="w-full bg-brand-card border border-brand-border rounded px-2 py-1 text-gray-200 outline-none"
+                    className="w-full bg-white border border-slate-200 rounded-lg px-2 py-1 text-slate-800 outline-none"
                   />
                 </div>
                 <div>
-                  <label className="block text-[9px] text-gray-400 uppercase">Frontal Area (m²)</label>
+                  <label className="block text-[9px] text-slate-500 uppercase font-bold">Frontal Area (m²)</label>
                   <input
                     type="number"
                     value={selectedShip.frontal_area}
                     onChange={(e) => handleOverrideChange('frontal_area', e.target.value)}
-                    className="w-full bg-brand-card border border-brand-border rounded px-2 py-1 text-gray-200 outline-none"
+                    className="w-full bg-white border border-slate-200 rounded-lg px-2 py-1 text-slate-800 outline-none"
                   />
                 </div>
               </div>
               <div className="grid grid-cols-2 gap-2">
                 <div>
-                  <label className="block text-[9px] text-gray-400 uppercase">Engine Eff (%)</label>
+                  <label className="block text-[9px] text-slate-500 uppercase font-bold">Engine Eff (%)</label>
                   <input
                     type="number"
                     step="0.01"
                     value={selectedShip.engine_efficiency}
                     onChange={(e) => handleOverrideChange('engine_efficiency', e.target.value)}
-                    className="w-full bg-brand-card border border-brand-border rounded px-2 py-1 text-gray-200 outline-none"
+                    className="w-full bg-white border border-slate-200 rounded-lg px-2 py-1 text-slate-800 outline-none"
                   />
                 </div>
                 <div>
-                  <label className="block text-[9px] text-gray-400 uppercase">SFOC (g/kWh)</label>
+                  <label className="block text-[9px] text-slate-500 uppercase font-bold">SFOC (g/kWh)</label>
                   <input
                     type="number"
                     value={selectedShip.sfoc}
                     onChange={(e) => handleOverrideChange('sfoc', e.target.value)}
-                    className="w-full bg-brand-card border border-brand-border rounded px-2 py-1 text-gray-200 outline-none"
+                    className="w-full bg-white border border-slate-200 rounded-lg px-2 py-1 text-slate-800 outline-none"
                   />
                 </div>
               </div>
@@ -152,16 +152,16 @@ export default function Sidebar() {
 
       {/* Section C: Multi-Objective Weight Sliders */}
       <section className="space-y-4">
-        <div className="flex items-center space-x-2 border-b border-brand-border/40 pb-2">
-          <Sliders className="h-4 w-4 text-brand-glow" />
-          <h2 className="text-sm font-semibold tracking-wider text-white uppercase">Pareto Priority Weights</h2>
+        <div className="flex items-center space-x-2 border-b border-slate-100 pb-2.5">
+          <Sliders className="h-4 w-4 text-blue-600" />
+          <h2 className="text-xs font-bold tracking-wider text-slate-800 uppercase font-sans">Pareto Priority Weights</h2>
         </div>
 
         <div className="space-y-4">
           <div>
-            <div className="flex justify-between items-center mb-1 text-xs font-mono">
-              <span className="text-brand-safety uppercase">Safety Priority</span>
-              <span className="text-gray-300 font-bold">{safetyWeight.toFixed(2)}</span>
+            <div className="flex justify-between items-center mb-1 text-xs font-medium">
+              <span className="text-emerald-700 uppercase font-bold">Safety Priority</span>
+              <span className="text-slate-800 font-bold bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">{safetyWeight.toFixed(2)}</span>
             </div>
             <input
               type="range"
@@ -170,14 +170,14 @@ export default function Sidebar() {
               step="0.01"
               value={safetyWeight}
               onChange={(e) => handleWeightChange('safety', e.target.value)}
-              className="w-full h-1 bg-brand-bg rounded-lg appearance-none cursor-pointer accent-brand-safety"
+              className="w-full h-1.5 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-emerald-600"
             />
           </div>
 
           <div>
-            <div className="flex justify-between items-center mb-1 text-xs font-mono">
-              <span className="text-brand-fuel uppercase">Fuel efficiency</span>
-              <span className="text-gray-300 font-bold">{fuelWeight.toFixed(2)}</span>
+            <div className="flex justify-between items-center mb-1 text-xs font-medium">
+              <span className="text-blue-700 uppercase font-bold">Fuel efficiency</span>
+              <span className="text-slate-800 font-bold bg-blue-50 px-2 py-0.5 rounded-full border border-blue-200">{fuelWeight.toFixed(2)}</span>
             </div>
             <input
               type="range"
@@ -186,14 +186,14 @@ export default function Sidebar() {
               step="0.01"
               value={fuelWeight}
               onChange={(e) => handleWeightChange('fuel', e.target.value)}
-              className="w-full h-1 bg-brand-bg rounded-lg appearance-none cursor-pointer accent-brand-fuel"
+              className="w-full h-1.5 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-blue-600"
             />
           </div>
 
           <div>
-            <div className="flex justify-between items-center mb-1 text-xs font-mono">
-              <span className="text-brand-time uppercase">Speed & Time</span>
-              <span className="text-gray-300 font-bold">{timeWeight.toFixed(2)}</span>
+            <div className="flex justify-between items-center mb-1 text-xs font-medium">
+              <span className="text-rose-700 uppercase font-bold">Speed & Time</span>
+              <span className="text-slate-800 font-bold bg-rose-50 px-2 py-0.5 rounded-full border border-rose-200">{timeWeight.toFixed(2)}</span>
             </div>
             <input
               type="range"
@@ -202,19 +202,19 @@ export default function Sidebar() {
               step="0.01"
               value={timeWeight}
               onChange={(e) => handleWeightChange('time', e.target.value)}
-              className="w-full h-1 bg-brand-bg rounded-lg appearance-none cursor-pointer accent-brand-time"
+              className="w-full h-1.5 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-rose-600"
             />
           </div>
 
           {/* Sum Check Validation UI */}
-          <div className="flex justify-between items-center text-xs font-mono border border-brand-border rounded p-2.5 bg-brand-bg/30">
-            <span className="text-gray-400">Total Sum (Required: 1.0)</span>
-            <span className={`font-bold ${isWeightsValid ? 'text-brand-safety' : 'text-brand-time'}`}>
+          <div className="flex justify-between items-center text-xs font-medium border border-slate-200 rounded-xl p-3 bg-slate-50">
+            <span className="text-slate-500">Total Sum (Required: 1.0)</span>
+            <span className={`font-bold ${isWeightsValid ? 'text-emerald-600' : 'text-rose-600'}`}>
               {weightSum.toFixed(2)}
             </span>
           </div>
           {!isWeightsValid && (
-            <p className="text-[10px] text-brand-time font-mono text-center">
+            <p className="text-[11px] text-rose-600 font-medium text-center">
               ⚠️ Weights must sum to exactly 1.00 for valid Pareto extraction.
             </p>
           )}
@@ -222,11 +222,11 @@ export default function Sidebar() {
       </section>
 
       {/* Section D: Actions Hub */}
-      <section className="space-y-3 pt-4 border-t border-brand-border/40 mt-auto">
+      <section className="space-y-3 pt-4 border-t border-slate-100 mt-auto">
         <button
           onClick={calculateRoutes}
           disabled={loading || !isWeightsValid}
-          className="w-full flex items-center justify-center space-x-2 bg-gradient-to-r from-cyan-600 to-brand-fuel hover:from-cyan-500 hover:to-blue-500 disabled:from-gray-700 disabled:to-gray-800 text-white font-semibold text-sm py-2.5 rounded shadow-glow hover:shadow-glow-blue transition cursor-pointer"
+          className="w-full flex items-center justify-center space-x-2 bg-blue-600 hover:bg-blue-700 disabled:bg-slate-300 text-white font-semibold text-sm py-2.5 rounded-xl shadow-xs transition cursor-pointer"
         >
           {loading ? (
             <div className="animate-spin rounded-full h-4 w-4 border-t-2 border-white"></div>
@@ -239,14 +239,14 @@ export default function Sidebar() {
         <button
           onClick={triggerWeatherShiftAndReplan}
           disabled={loading || !routes}
-          className="w-full flex items-center justify-center space-x-2 bg-brand-bg border border-red-500/40 hover:bg-red-950/20 disabled:border-gray-800 disabled:hover:bg-transparent text-red-400 font-semibold text-xs py-2 rounded transition cursor-pointer"
+          className="w-full flex items-center justify-center space-x-2 bg-rose-50 border border-rose-200 hover:bg-rose-100 disabled:border-slate-200 disabled:bg-slate-50 disabled:text-slate-400 text-rose-600 font-semibold text-xs py-2 rounded-xl transition cursor-pointer"
         >
           <CloudLightning className="h-3.5 w-3.5" />
-          <span>[Simulate Weather Shift & Replan]</span>
+          <span>Simulate Weather Shift & Replan</span>
         </button>
 
         {errorMsg && (
-          <p className="text-xs text-brand-time font-mono text-center bg-red-950/20 border border-red-500/30 p-2 rounded">
+          <p className="text-xs text-rose-600 font-medium text-center bg-rose-50 border border-rose-200 p-2.5 rounded-xl">
             Error: {errorMsg}
           </p>
         )}

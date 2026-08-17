@@ -3,67 +3,72 @@
 @tailwind utilities;
 
 @layer base {
+  * {
+    font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif !important;
+  }
+  
   body {
-    @apply bg-brand-bg text-gray-100 antialiased font-sans overflow-x-hidden;
-    background-image: 
-      radial-gradient(at 0% 0%, rgba(56, 189, 248, 0.05) 0px, transparent 50%),
-      radial-gradient(at 100% 100%, rgba(168, 85, 247, 0.05) 0px, transparent 50%);
+    @apply bg-slate-50 text-slate-800 antialiased font-sans overflow-x-hidden;
+    background-color: #F7F9FC;
   }
 }
 
-/* Custom Webkit scrollbar for sleek console look */
+/* Custom Webkit scrollbar for sleek modern look */
 ::-webkit-scrollbar {
   width: 6px;
   height: 6px;
 }
 ::-webkit-scrollbar-track {
-  background: #0B0F19;
+  background: #F1F5F9;
 }
 ::-webkit-scrollbar-thumb {
-  background: #23334D;
+  background: #CBD5E1;
   border-radius: 3px;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: #38BDF8;
+  background: #94A3B8;
 }
 
-/* Custom styling for Leaflet elements inside dark command center */
+/* Custom styling for Leaflet elements inside light mode container */
 .leaflet-container {
-  background: #0B0F19 !important;
-  font-family: inherit;
+  background: #E2E8F0 !important;
+  font-family: 'Inter', sans-serif !important;
 }
 
 .leaflet-bar a {
-  background-color: #161F30 !important;
-  color: #E5E7EB !important;
-  border: 1px solid #23334D !important;
+  background-color: #FFFFFF !important;
+  color: #334155 !important;
+  border: 1px solid #E2E8F0 !important;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.05) !important;
 }
 
 .leaflet-bar a:hover {
-  background-color: #23334D !important;
-  color: #38BDF8 !important;
+  background-color: #F8FAFC !important;
+  color: #2563EB !important;
 }
 
 .leaflet-popup-content-wrapper {
-  background: #161F30 !important;
-  color: #E5E7EB !important;
-  border: 1px solid #23334D !important;
-  box-shadow: 0 0 15px rgba(56, 189, 248, 0.25) !important;
+  background: #FFFFFF !important;
+  color: #1E293B !important;
+  border: 1px solid #E2E8F0 !important;
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.05) !important;
+  border-radius: 12px !important;
+  padding: 4px !important;
 }
 
 .leaflet-popup-tip {
-  background: #161F30 !important;
+  background: #FFFFFF !important;
 }
 
 /* Pulse animation for Storm warning */
 @keyframes weather-pulse {
   0% {
     transform: scale(0.95);
-    box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.7);
+    box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.5);
   }
   70% {
     transform: scale(1);
-    box-shadow: 0 0 0 10px rgba(239, 68, 68, 0);
+    box-shadow: 0 0 0 12px rgba(239, 68, 68, 0);
   }
   100% {
     transform: scale(0.95);
@@ -75,17 +80,3 @@
   animation: weather-pulse 2s infinite;
 }
 
-/* Scanline overlay for that premium command center terminal look */
-.scanline {
-  position: relative;
-}
-.scanline::after {
-  content: " ";
-  display: block;
-  position: absolute;
-  top: 0; left: 0; bottom: 0; right: 0;
-  background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.25) 50%), linear-gradient(90deg, rgba(255, 0, 0, 0.06), rgba(0, 255, 0, 0.02), rgba(0, 0, 255, 0.06));
-  z-index: 9999;
-  background-size: 100% 2px, 3px 100%;
-  pointer-events: none;
-}

@@ -7,7 +7,7 @@ export default function ParetoDock() {
 
   if (!routes) {
     return (
-      <div className="h-28 border-t border-brand-border bg-brand-card/90 flex items-center justify-center text-xs font-mono text-gray-400">
+      <div className="h-24 border-t border-slate-200/80 bg-white flex items-center justify-center text-xs font-medium text-slate-400 font-sans">
         No active routes calculated. Trigger "Calculate Optimal Routes" to view Pareto trade-off comparisons.
       </div>
     );
@@ -17,45 +17,45 @@ export default function ParetoDock() {
     {
       key: 'fastest',
       label: 'Fastest Path',
-      color: 'border-red-500/30 hover:border-red-500',
-      activeColor: 'ring-2 ring-red-500 border-red-500 bg-red-950/20',
-      badge: 'bg-red-500/10 text-red-400 border-red-500/30',
-      iconColor: 'text-red-400'
+      color: 'border-rose-200 hover:border-rose-400',
+      activeColor: 'ring-2 ring-rose-500 border-rose-500 bg-rose-50/50 shadow-xs',
+      badge: 'bg-rose-50 text-rose-600 border-rose-200',
+      iconColor: 'text-rose-500'
     },
     {
       key: 'fuel_optimized',
       label: 'Fuel Optimized',
-      color: 'border-blue-500/30 hover:border-blue-500',
-      activeColor: 'ring-2 ring-blue-500 border-blue-500 bg-blue-950/20',
-      badge: 'bg-blue-500/10 text-blue-400 border-blue-500/30',
-      iconColor: 'text-blue-400'
+      color: 'border-blue-200 hover:border-blue-400',
+      activeColor: 'ring-2 ring-blue-500 border-blue-500 bg-blue-50/50 shadow-xs',
+      badge: 'bg-blue-50 text-blue-600 border-blue-200',
+      iconColor: 'text-blue-500'
     },
     {
       key: 'safest',
       label: 'Safest Path',
-      color: 'border-emerald-500/30 hover:border-emerald-500',
-      activeColor: 'ring-2 ring-emerald-500 border-emerald-500 bg-emerald-950/20',
-      badge: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30',
-      iconColor: 'text-emerald-400'
+      color: 'border-emerald-200 hover:border-emerald-400',
+      activeColor: 'ring-2 ring-emerald-500 border-emerald-500 bg-emerald-50/50 shadow-xs',
+      badge: 'bg-emerald-50 text-emerald-600 border-emerald-200',
+      iconColor: 'text-emerald-500'
     },
     {
       key: 'balanced',
       label: 'Balanced Path',
-      color: 'border-purple-500/30 hover:border-purple-500',
-      activeColor: 'ring-2 ring-purple-500 border-purple-500 bg-purple-950/20',
-      badge: 'bg-purple-500/10 text-purple-400 border-purple-500/30',
-      iconColor: 'text-purple-400'
+      color: 'border-indigo-200 hover:border-indigo-400',
+      activeColor: 'ring-2 ring-indigo-500 border-indigo-500 bg-indigo-50/50 shadow-xs',
+      badge: 'bg-indigo-50 text-indigo-600 border-indigo-200',
+      iconColor: 'text-indigo-500'
     }
   ];
 
   return (
-    <div className="border-t border-brand-border bg-brand-card/90 p-4 space-y-3 select-none">
-      <div className="flex items-center space-x-2 text-[10px] font-mono text-gray-400 uppercase tracking-wider">
-        <Award className="h-3.5 w-3.5 text-brand-glow" />
+    <div className="border-t border-slate-200/80 bg-white p-4 space-y-3 select-none font-sans shadow-xs">
+      <div className="flex items-center space-x-2 text-xs font-semibold text-slate-500 uppercase tracking-wider">
+        <Award className="h-4 w-4 text-blue-600" />
         <span>Pareto Optimization Trade-off Matrix (Select path to visualize)</span>
       </div>
 
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3.5">
         {routeItems.map((item) => {
           const routeData = routes[item.key];
           if (!routeData) return null;
@@ -66,13 +66,13 @@ export default function ParetoDock() {
             <div
               key={item.key}
               onClick={() => setSelectedRouteKey(item.key)}
-              className={`p-3.5 rounded-lg border bg-brand-bg/40 cursor-pointer transition flex flex-col justify-between h-28 ${
-                isSelected ? item.activeColor : `${item.color} border-brand-border`
+              className={`p-3.5 rounded-2xl border bg-slate-50/60 cursor-pointer transition flex flex-col justify-between h-28 ${
+                isSelected ? item.activeColor : `${item.color} border-slate-200`
               }`}
             >
               <div className="flex items-center justify-between mb-1.5">
-                <span className="text-xs font-semibold text-white tracking-wide">{item.label}</span>
-                <span className={`text-[9px] font-mono px-1.5 py-0.5 rounded border uppercase ${item.badge}`}>
+                <span className="text-xs font-bold text-slate-800 tracking-tight">{item.label}</span>
+                <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full border uppercase ${item.badge}`}>
                   {item.key === 'balanced' ? 'Weighted' : 'Extreme'}
                 </span>
               </div>
@@ -81,25 +81,25 @@ export default function ParetoDock() {
                 <div className="flex flex-col items-center">
                   <div className="flex items-center space-x-1 mb-0.5">
                     <Clock className={`h-3 w-3 ${item.iconColor}`} />
-                    <span className="text-[9px] text-gray-400 uppercase font-mono">Time</span>
+                    <span className="text-[10px] text-slate-400 uppercase font-medium">Time</span>
                   </div>
-                  <span className="text-xs font-mono text-gray-200 font-bold">{routeData.total_time}h</span>
+                  <span className="text-xs font-bold text-slate-800">{routeData.total_time}h</span>
                 </div>
 
-                <div className="flex flex-col items-center border-x border-brand-border/85">
+                <div className="flex flex-col items-center border-x border-slate-200">
                   <div className="flex items-center space-x-1 mb-0.5">
                     <Fuel className={`h-3 w-3 ${item.iconColor}`} />
-                    <span className="text-[9px] text-gray-400 uppercase font-mono">Fuel</span>
+                    <span className="text-[10px] text-slate-400 uppercase font-medium">Fuel</span>
                   </div>
-                  <span className="text-xs font-mono text-gray-200 font-bold">{routeData.total_fuel.toLocaleString()}g</span>
+                  <span className="text-xs font-bold text-slate-800">{routeData.total_fuel.toLocaleString()}g</span>
                 </div>
 
                 <div className="flex flex-col items-center">
                   <div className="flex items-center space-x-1 mb-0.5">
                     <ShieldAlert className={`h-3 w-3 ${item.iconColor}`} />
-                    <span className="text-[9px] text-gray-400 uppercase font-mono">Risk</span>
+                    <span className="text-[10px] text-slate-400 uppercase font-medium">Risk</span>
                   </div>
-                  <span className="text-xs font-mono text-gray-200 font-bold">{routeData.total_risk}</span>
+                  <span className="text-xs font-bold text-slate-800">{routeData.total_risk}</span>
                 </div>
               </div>
             </div>

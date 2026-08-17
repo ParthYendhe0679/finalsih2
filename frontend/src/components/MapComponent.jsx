@@ -18,7 +18,7 @@ L.Icon.Default.mergeOptions({
 });
 
 // Custom glowing icons using inline SVGs
-const createGlowingIcon = (color, size = 12) => {
+const createGlowingIcon = (color, size = 14) => {
   return L.divIcon({
     className: 'custom-glow-icon',
     html: `<div style="
@@ -26,7 +26,7 @@ const createGlowingIcon = (color, size = 12) => {
       height: ${size}px;
       border-radius: 50%;
       background-color: ${color};
-      box-shadow: 0 0 10px ${color}, 0 0 20px ${color};
+      box-shadow: 0 0 10px ${color}, 0 0 15px ${color};
       border: 2px solid white;
     "></div>`,
     iconSize: [size, size],
@@ -34,25 +34,25 @@ const createGlowingIcon = (color, size = 12) => {
   });
 };
 
-const createShipIcon = (color = '#A855F7') => {
+const createShipIcon = (color = '#4F46E5') => {
   return L.divIcon({
     className: 'custom-ship-icon',
     html: `<div class="animate-bounce" style="
-      width: 24px;
-      height: 24px;
+      width: 26px;
+      height: 26px;
       display: flex;
       align-items: center;
       justify-content: center;
       background-color: ${color};
-      border: 2px solid #FFFFFF;
-      border-radius: 6px;
-      box-shadow: 0 0 15px ${color};
+      border: 2.5px solid #FFFFFF;
+      border-radius: 8px;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
       color: white;
     ">
-      <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M2 21h20"/><path d="M19.3 14.8C21.1 13.5 22 11.7 22 9.5c0-3.6-3.6-4.5-5.5-4.5C14.8 5 12 7.7 12 10.5c0-1.8-1.4-3.5-3.5-3.5C6.3 7 5 8.7 5 10.5c0 2.2.9 4 2.7 5.3L2 21h20l-2.7-6.2z"/></svg>
+      <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M2 21h20"/><path d="M19.3 14.8C21.1 13.5 22 11.7 22 9.5c0-3.6-3.6-4.5-5.5-4.5C14.8 5 12 7.7 12 10.5c0-1.8-1.4-3.5-3.5-3.5C6.3 7 5 8.7 5 10.5c0 2.2.9 4 2.7 5.3L2 21h20l-2.7-6.2z"/></svg>
     </div>`,
-    iconSize: [24, 24],
-    iconAnchor: [12, 12]
+    iconSize: [26, 26],
+    iconAnchor: [13, 13]
   });
 };
 
@@ -61,10 +61,10 @@ const portIcon = L.divIcon({
   html: `<div style="
     width: 14px;
     height: 14px;
-    background-color: #1E293B;
-    border: 2.5px solid #38BDF8;
+    background-color: #0F172A;
+    border: 2.5px solid #2563EB;
     border-radius: 50%;
-    box-shadow: 0 0 10px #38BDF8;
+    box-shadow: 0 0 10px rgba(37, 99, 235, 0.4);
   "></div>`,
   iconSize: [14, 14],
   iconAnchor: [7, 7]
@@ -103,9 +103,9 @@ export default function MapComponent() {
   // Active path selection
   const routeConfigs = {
     fastest: { color: '#EF4444', label: 'Fastest Route', weight: 4.5 },
-    fuel_optimized: { color: '#3B82F6', label: 'Fuel Optimized', weight: 4.5 },
+    fuel_optimized: { color: '#2563EB', label: 'Fuel Optimized', weight: 4.5 },
     safest: { color: '#10B981', label: 'Safest Route', weight: 4.5 },
-    balanced: { color: '#A855F7', label: 'Balanced Route', weight: 6 }
+    balanced: { color: '#4F46E5', label: 'Balanced Route', weight: 6 }
   };
 
   // Helper to compile overlay nodes
@@ -131,8 +131,8 @@ export default function MapComponent() {
                 center={[lat, lon]}
                 radius={35000 + windSpeed * 2000}
                 pathOptions={{
-                  color: '#38BDF8',
-                  fillColor: '#38BDF8',
+                  color: '#2563EB',
+                  fillColor: '#2563EB',
                   fillOpacity: 0.15,
                   weight: 0.5
                 }}
@@ -187,17 +187,17 @@ export default function MapComponent() {
   const currentVesselPosition = activeWaypoints && activeWaypoints[currentVesselIndex];
 
   return (
-    <div className="relative flex-1 h-[55vh] lg:h-auto border-b lg:border-b-0 lg:border-r border-brand-border bg-brand-bg">
+    <div className="relative flex-1 h-[55vh] lg:h-auto border-b lg:border-b-0 lg:border-r border-slate-200/80 bg-slate-100 font-sans">
       <MapContainer
         center={[6.5, 75.0]}
         zoom={4}
         className="w-full h-full"
         zoomControl={false}
       >
-        {/* Dark theme maps */}
+        {/* CartoDB Voyager Light Map Tiles */}
         <TileLayer
           attribution='&copy; <a href="https://carto.com/">CartoDB</a>'
-          url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
+          url="https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png"
         />
 
         {/* Map FitBounds Controller */}
@@ -218,7 +218,7 @@ export default function MapComponent() {
                 pathOptions={{
                   color: config.color,
                   weight: isSelected ? config.weight : 2.5,
-                  opacity: isSelected ? 0.9 : 0.4,
+                  opacity: isSelected ? 0.95 : 0.45,
                   dashArray: isSelected ? '' : '6,6'
                 }}
                 eventHandlers={{
@@ -226,16 +226,16 @@ export default function MapComponent() {
                 }}
               >
                 <Popup>
-                  <div className="text-xs font-mono text-gray-200">
+                  <div className="text-xs font-sans text-slate-800 p-1">
                     <p className="font-bold text-sm uppercase mb-1" style={{ color: config.color }}>
                       {config.label}
                     </p>
-                    <p>Duration: <span className="text-white font-bold">{route.total_time} Hours</span></p>
-                    <p>Fuel: <span className="text-white font-bold">{route.total_fuel} Gal</span></p>
-                    <p>Risk Index: <span className="text-white font-bold">{route.total_risk}</span></p>
+                    <p className="text-slate-600">Duration: <span className="text-slate-900 font-bold">{route.total_time} Hours</span></p>
+                    <p className="text-slate-600">Fuel: <span className="text-slate-900 font-bold">{route.total_fuel} Gal</span></p>
+                    <p className="text-slate-600">Risk Index: <span className="text-slate-900 font-bold">{route.total_risk}</span></p>
                     <button
                       onClick={() => setSelectedRouteKey(key)}
-                      className="mt-2 w-full text-center bg-brand-border hover:bg-brand-glow/20 border border-brand-border hover:border-brand-glow text-gray-200 text-[10px] py-1 rounded transition"
+                      className="mt-2 w-full text-center bg-blue-600 hover:bg-blue-700 text-white text-[11px] font-semibold py-1 rounded-lg transition"
                     >
                       Select Route
                     </button>
@@ -249,10 +249,10 @@ export default function MapComponent() {
         {routes && (
           <>
             <Marker position={routes.balanced.waypoints[0]} icon={portIcon}>
-              <Popup><div className="text-xs font-mono font-bold">Departure Port</div></Popup>
+              <Popup><div className="text-xs font-sans font-bold text-slate-800">Departure Port</div></Popup>
             </Marker>
             <Marker position={routes.balanced.waypoints[routes.balanced.waypoints.length - 1]} icon={portIcon}>
-              <Popup><div className="text-xs font-mono font-bold">Arrival Port</div></Popup>
+              <Popup><div className="text-xs font-sans font-bold text-slate-800">Arrival Port</div></Popup>
             </Marker>
           </>
         )}
@@ -261,11 +261,11 @@ export default function MapComponent() {
         {currentVesselPosition && (
           <Marker position={currentVesselPosition} icon={createShipIcon(routeConfigs[selectedRouteKey]?.color)}>
             <Popup>
-              <div className="text-xs font-mono text-gray-200">
-                <p className="font-bold uppercase text-brand-glow">Vessel Position</p>
-                <p>Latitude: {currentVesselPosition[0].toFixed(4)}°N</p>
-                <p>Longitude: {currentVesselPosition[1].toFixed(4)}°E</p>
-                <p>Waypoint: {currentVesselIndex + 1} / {activeWaypoints.length}</p>
+              <div className="text-xs font-sans text-slate-800 p-1">
+                <p className="font-bold uppercase text-blue-600">Vessel Position</p>
+                <p className="text-slate-600">Latitude: <span className="font-medium text-slate-900">{currentVesselPosition[0].toFixed(4)}°N</span></p>
+                <p className="text-slate-600">Longitude: <span className="font-medium text-slate-900">{currentVesselPosition[1].toFixed(4)}°E</span></p>
+                <p className="text-slate-600">Waypoint: <span className="font-medium text-slate-900">{currentVesselIndex + 1} / {activeWaypoints.length}</span></p>
               </div>
             </Popup>
           </Marker>
@@ -279,13 +279,13 @@ export default function MapComponent() {
             pathOptions={{
               color: '#EF4444',
               fillColor: '#EF4444',
-              fillOpacity: 0.12,
+              fillOpacity: 0.15,
               weight: 1.5,
               className: 'pulse-weather'
             }}
           >
             <Popup>
-              <div className="text-xs font-mono text-red-400 font-bold">
+              <div className="text-xs font-sans text-rose-600 font-bold">
                 ⚠️ RADAR REPORTED STORM GRID
               </div>
             </Popup>
@@ -294,48 +294,48 @@ export default function MapComponent() {
       </MapContainer>
 
       {/* Layer selector controls HUD */}
-      <div className="absolute top-4 right-4 z-[1000] bg-brand-card/90 border border-brand-border p-3 rounded-lg shadow-glow backdrop-blur-md text-xs font-mono space-y-2.5 max-w-[200px]">
-        <div className="flex items-center space-x-1.5 border-b border-brand-border/60 pb-1.5 text-gray-300 font-semibold uppercase text-[10px] tracking-wider">
-          <Eye className="h-3.5 w-3.5 text-brand-glow" />
+      <div className="absolute top-4 right-4 z-[1000] bg-white/95 border border-slate-200 p-3.5 rounded-2xl shadow-md backdrop-blur-md text-xs font-sans space-y-2.5 max-w-[210px]">
+        <div className="flex items-center space-x-1.5 border-b border-slate-100 pb-2 text-slate-800 font-bold uppercase text-[11px] tracking-wider">
+          <Eye className="h-4 w-4 text-blue-600" />
           <span>Tactical Map Overlays</span>
         </div>
         
-        <label className="flex items-center space-x-2 cursor-pointer text-gray-300 hover:text-white select-none">
+        <label className="flex items-center space-x-2.5 cursor-pointer text-slate-600 hover:text-slate-900 select-none">
           <input
             type="checkbox"
             checked={showWinds}
             onChange={() => setShowWinds(!showWinds)}
-            className="rounded bg-brand-bg border-brand-border text-brand-glow focus:ring-0 focus:ring-offset-0 h-3.5 w-3.5 cursor-pointer"
+            className="rounded border-slate-300 text-blue-600 focus:ring-0 focus:ring-offset-0 h-4 w-4 cursor-pointer"
           />
-          <Wind className="h-3.5 w-3.5 text-brand-glow shrink-0" />
-          <span>Surface Winds</span>
+          <Wind className="h-4 w-4 text-blue-600 shrink-0" />
+          <span className="font-medium text-xs">Surface Winds</span>
         </label>
 
-        <label className="flex items-center space-x-2 cursor-pointer text-gray-300 hover:text-white select-none">
+        <label className="flex items-center space-x-2.5 cursor-pointer text-slate-600 hover:text-slate-900 select-none">
           <input
             type="checkbox"
             checked={showWaves}
             onChange={() => setShowWaves(!showWaves)}
-            className="rounded bg-brand-bg border-brand-border text-brand-glow focus:ring-0 focus:ring-offset-0 h-3.5 w-3.5 cursor-pointer"
+            className="rounded border-slate-300 text-blue-600 focus:ring-0 focus:ring-offset-0 h-4 w-4 cursor-pointer"
           />
-          <Droplets className="h-3.5 w-3.5 text-orange-400 shrink-0" />
-          <span>Wave Heights</span>
+          <Droplets className="h-4 w-4 text-amber-500 shrink-0" />
+          <span className="font-medium text-xs">Wave Heights</span>
         </label>
 
-        <label className="flex items-center space-x-2 cursor-pointer text-gray-300 hover:text-white select-none">
+        <label className="flex items-center space-x-2.5 cursor-pointer text-slate-600 hover:text-slate-900 select-none">
           <input
             type="checkbox"
             checked={showPiracy}
             onChange={() => setShowPiracy(!showPiracy)}
-            className="rounded bg-brand-bg border-brand-border text-brand-glow focus:ring-0 focus:ring-offset-0 h-3.5 w-3.5 cursor-pointer"
+            className="rounded border-slate-300 text-blue-600 focus:ring-0 focus:ring-offset-0 h-4 w-4 cursor-pointer"
           />
-          <ShieldAlert className="h-3.5 w-3.5 text-red-500 shrink-0" />
-          <span>Piracy Hotspots</span>
+          <ShieldAlert className="h-4 w-4 text-rose-500 shrink-0" />
+          <span className="font-medium text-xs">Piracy Hotspots</span>
         </label>
       </div>
 
       {/* Map coordinate scale locator */}
-      <div className="absolute bottom-4 left-4 z-[1000] bg-brand-card/75 border border-brand-border/80 px-2.5 py-1 rounded text-[9px] font-mono text-gray-400">
+      <div className="absolute bottom-4 left-4 z-[1000] bg-white/90 border border-slate-200/80 px-3 py-1 rounded-full text-[10px] font-semibold text-slate-600 shadow-xs">
         LAT: [-25°S, 25°N] // LON: [40°E, 110°E]
       </div>
     </div>
