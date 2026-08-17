@@ -1,0 +1,92 @@
+/* ------------------------------------------------------------------
+   Sagar Setu — design tokens
+   A restrained institutional palette: paper white, hydrographic blues,
+   one signal green for the recommended route, one amber for risk.
+   ------------------------------------------------------------------ */
+
+:root {
+  /* Surfaces */
+  --paper: #ffffff;
+  --paper-2: #fafcfd;
+  --paper-3: #f4f8fb;
+  --paper-tint: #eef4f9;
+
+  /* Ink */
+  --ink: #0a2540;
+  --ink-2: #274b6d;
+  --ink-muted: #5f7791;
+  --ink-faint: #8ba0b4;
+
+  /* Hydrographic blues */
+  --sea-100: #f2f8fc;
+  --sea-200: #e2eef7;
+  --sea-300: #cadff0;
+  --sea-400: #9ec4e2;
+  --sea-500: #5f9dcb;
+  --sea-600: #2f77ad;
+  --sea-700: #14568c;
+
+  /* Land + rules */
+  --land: #eef1f4;
+  --land-edge: #dbe2e9;
+  --rule: #e3eaf1;
+  --rule-strong: #cfdae5;
+
+  /* Signals */
+  --signal: #0e7f63; /* recommended route */
+  --signal-soft: #e6f3ef;
+  --risk: #c26a2c; /* weather / risk */
+  --risk-soft: #fbf0e6;
+  --alert: #b3462f;
+
+  /* Type */
+  --font-sans: 'Plus Jakarta Sans', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --font-mono: 'IBM Plex Mono', ui-monospace, 'SFMono-Regular', Menlo, monospace;
+  --font-serif: 'Newsreader', ui-serif, Georgia, 'Times New Roman', serif;
+
+  /* Rhythm */
+  --shell: 1380px;
+  --gutter: clamp(24px, 4vw, 56px);
+  --section-y: clamp(84px, 10vw, 144px);
+
+  /* Motion */
+  --ease: cubic-bezier(0.22, 0.61, 0.36, 1);
+  --ease-soft: cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Dark mode palette — deep oceanic navy command surface */
+[data-theme='dark'] {
+  /* Surfaces */
+  --paper: #08121e;
+  --paper-2: #0e1c2d;
+  --paper-3: #132438;
+  --paper-tint: #182e46;
+
+  /* Ink */
+  --ink: #f0f6fc;
+  --ink-2: #c5d8eb;
+  --ink-muted: #8ea9c4;
+  --ink-faint: #597491;
+
+  /* Hydrographic blues */
+  --sea-100: #10243b;
+  --sea-200: #163250;
+  --sea-300: #214870;
+  --sea-400: #3a75a7;
+  --sea-500: #559dd4;
+  --sea-600: #7ab8ea;
+  --sea-700: #a5d4f8;
+
+  /* Land + rules */
+  --land: #13253a;
+  --land-edge: #223f5e;
+  --rule: #1b324c;
+  --rule-strong: #2c4d72;
+
+  /* Signals */
+  --signal: #1cdba8;
+  --signal-soft: #083329;
+  --risk: #f59e42;
+  --risk-soft: #382010;
+  --alert: #ff6b52;
+}

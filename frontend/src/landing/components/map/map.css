@@ -1,0 +1,148 @@
+/* ---------- shared chart styling ---------- */
+
+.chart {
+  width: 100%;
+  height: auto;
+  display: block;
+  overflow: visible;
+}
+
+.port-label {
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  letter-spacing: 0.08em;
+  fill: var(--ink);
+  paint-order: stroke;
+  stroke: rgba(255, 255, 255, 0.95);
+  stroke-width: 3.5px;
+  stroke-linejoin: round;
+}
+
+.port-label--strong {
+  fill: var(--ink);
+  font-weight: 600;
+  letter-spacing: 0.09em;
+}
+
+.chart-note {
+  font-family: var(--font-mono);
+  font-size: 9.5px;
+  letter-spacing: 0.13em;
+  text-transform: uppercase;
+  fill: var(--ink-muted);
+  paint-order: stroke;
+  stroke: rgba(255, 255, 255, 0.92);
+  stroke-width: 2.5px;
+  stroke-linejoin: round;
+}
+
+/* ---------- ambient current lines ---------- */
+
+.contour {
+  animation: contour-drift 44s var(--ease-soft) infinite alternate;
+}
+
+@keyframes contour-drift {
+  from {
+    transform: translate3d(0, 0, 0);
+  }
+  to {
+    transform: translate3d(-26px, 7px, 0);
+  }
+}
+
+/* ---------- routes ---------- */
+
+.route {
+  fill: none;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  vector-effect: non-scaling-stroke;
+}
+
+.route--alt {
+  stroke: var(--sea-600);
+  stroke-width: 1.8;
+  stroke-dasharray: 5 7;
+  opacity: 0.75;
+}
+
+.route--rec {
+  stroke: var(--signal);
+  stroke-width: 3.2;
+}
+
+.route--halo {
+  stroke: var(--signal);
+  stroke-width: 10;
+  opacity: 0.18;
+}
+
+/* hero routes fade in and out on a long, staggered cycle */
+.route--ambient {
+  stroke: var(--sea-600);
+  stroke-width: 1.6;
+  stroke-dasharray: 4 8;
+  animation: route-breathe 17s var(--ease-soft) infinite;
+}
+
+@keyframes route-breathe {
+  0%,
+  100% {
+    opacity: 0.18;
+  }
+  22%,
+  70% {
+    opacity: 0.75;
+  }
+}
+
+/* draws a route on once its section is revealed */
+.route--draw {
+  stroke-dasharray: var(--len, 1400);
+  stroke-dashoffset: var(--len, 1400);
+  transition: stroke-dashoffset 2.1s var(--ease);
+  transition-delay: var(--draw-delay, 0ms);
+}
+
+[data-reveal='in'] .route--draw {
+  stroke-dashoffset: 0;
+}
+
+/* ---------- weather cell ---------- */
+
+.weather-spin {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: weather-spin 62s linear infinite;
+}
+
+@keyframes weather-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.weather-pulse {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: weather-pulse 7.5s var(--ease-soft) infinite;
+}
+
+@keyframes weather-pulse {
+  0%,
+  100% {
+    opacity: 0.55;
+    transform: scale(0.97);
+  }
+  50% {
+    opacity: 0.85;
+    transform: scale(1.03);
+  }
+}
+
+/* ---------- vessels ---------- */
+
+.vessel {
+  transition: opacity 1.2s var(--ease);
+}

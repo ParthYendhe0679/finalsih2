@@ -1,0 +1,184 @@
+.routeview {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 336px;
+  gap: clamp(24px, 3vw, 48px);
+  align-items: start;
+}
+
+.routeview__map {
+  margin: 0;
+  border: 1px solid rgba(226, 232, 240, 0.9);
+  border-radius: 16px;
+  background: var(--paper);
+  overflow: hidden;
+  box-shadow: 0 10px 25px -5px rgba(10, 37, 64, 0.08), 0 1px 3px rgba(10, 37, 64, 0.05);
+}
+
+.routeview__map .chart {
+  overflow: hidden;
+}
+
+/* route emphasis driven by the rail */
+.rt .route {
+  transition:
+    opacity 0.45s var(--ease),
+    stroke-width 0.45s var(--ease);
+}
+
+.rt:not(.rt--on) .route--alt {
+  opacity: 0.24;
+}
+
+.rt.rt--on .route--alt {
+  opacity: 0.95;
+  stroke-width: 2.2;
+  stroke: var(--sea-700);
+}
+
+.rt:not(.rt--on) .route--rec {
+  opacity: 0.4;
+}
+
+/* ---------- rail ---------- */
+
+.routeview__railTitle {
+  padding-bottom: 14px;
+  border-bottom: 1px solid var(--ink);
+  font-family: var(--font-sans);
+  font-weight: 700;
+}
+
+.rlist {
+  display: grid;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.rrow {
+  display: grid;
+  gap: 8px;
+  width: 100%;
+  padding: 16px;
+  text-align: left;
+  border: 1px solid transparent;
+  border-radius: 12px;
+  background: transparent;
+  cursor: pointer;
+  transition:
+    background-color 0.25s var(--ease),
+    border-color 0.25s var(--ease),
+    box-shadow 0.25s var(--ease),
+    transform 0.25s var(--ease);
+}
+
+.rrow:hover {
+  background: #f8fafc;
+  border-color: #e2e8f0;
+}
+
+.rrow--on {
+  background: #eff6ff !important;
+  border-color: #bfdbfe !important;
+  box-shadow: 0 4px 12px -2px rgba(37, 99, 235, 0.12);
+}
+
+.rrow__head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.rrow__swatch {
+  width: 16px;
+  height: 2px;
+  flex: none;
+  background: var(--sea-500);
+  opacity: 0.6;
+}
+
+.rrow--rec .rrow__swatch {
+  background: var(--signal);
+  height: 3px;
+  opacity: 1;
+}
+
+.rrow__name {
+  font-size: 14.5px;
+  font-weight: 500;
+  letter-spacing: -0.008em;
+  color: var(--ink);
+}
+
+.rrow--rec .rrow__name {
+  color: var(--signal);
+}
+
+.rrow__stats {
+  display: flex;
+  gap: 18px;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--ink-2);
+  font-variant-numeric: tabular-nums;
+}
+
+.rrow__exposure {
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+}
+
+.rrow--rec .rrow__exposure {
+  color: var(--signal);
+}
+
+.rrow__verdict {
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--ink-muted);
+  max-height: 0;
+  opacity: 0;
+  overflow: hidden;
+  transition:
+    max-height 0.45s var(--ease),
+    opacity 0.35s var(--ease),
+    margin-top 0.45s var(--ease);
+}
+
+.rrow--on .rrow__verdict {
+  max-height: 64px;
+  opacity: 1;
+  margin-top: 2px;
+}
+
+.routeview__foot {
+  margin-top: 18px;
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+}
+
+@media (max-width: 1080px) {
+  .routeview {
+    grid-template-columns: 1fr;
+  }
+
+  .rrow__verdict {
+    max-height: 64px;
+    opacity: 1;
+  }
+}
+
+@media (max-width: 520px) {
+  .rrow {
+    padding-inline: 12px;
+  }
+
+  .rrow__stats {
+    gap: 14px;
+  }
+}

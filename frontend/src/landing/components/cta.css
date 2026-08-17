@@ -1,0 +1,121 @@
+.cta {
+  position: relative;
+  padding-block: clamp(96px, 12vw, 168px) clamp(120px, 14vw, 200px);
+  background: linear-gradient(180deg, var(--paper) 0%, var(--paper-3) 58%, var(--paper-tint) 100%);
+  overflow: hidden;
+  text-align: center;
+}
+
+.cta__sea {
+  position: absolute;
+  inset: auto 0 0;
+  height: clamp(90px, 12vw, 150px);
+  pointer-events: none;
+}
+
+.cta__waves {
+  width: 100%;
+  height: 100%;
+  animation: sea-drift 26s var(--ease-soft) infinite alternate;
+}
+
+@keyframes sea-drift {
+  from {
+    transform: translate3d(-2%, 4px, 0);
+  }
+  to {
+    transform: translate3d(2%, -4px, 0);
+  }
+}
+
+.cta__inner {
+  position: relative;
+  display: grid;
+  justify-items: center;
+  gap: 0;
+}
+
+.cta__head {
+  margin-top: 24px;
+  font-family: var(--font-sans);
+  font-size: clamp(2.4rem, 4.2vw, 3.75rem);
+  line-height: 1.1;
+  letter-spacing: -0.03em;
+  color: var(--ink);
+  max-width: 20ch;
+  text-wrap: balance;
+  font-weight: 800;
+}
+
+.cta__body {
+  margin-top: 20px;
+  max-width: 58ch;
+  font-family: var(--font-sans);
+  font-size: clamp(1.125rem, 1.35vw, 1.28rem);
+  line-height: 1.65;
+  color: var(--ink-2);
+  text-wrap: pretty;
+}
+
+.cta__action {
+  margin-top: 40px;
+}
+
+/* ---------- footer ---------- */
+
+.foot {
+  padding-block: clamp(48px, 6vw, 72px) 36px;
+  background: var(--paper);
+  border-top: 1px solid var(--rule);
+}
+
+.foot__inner {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 36px;
+}
+
+.foot__tag {
+  margin-top: 14px;
+  max-width: 38ch;
+  font-size: 14.5px;
+  line-height: 1.6;
+  color: var(--ink-2);
+}
+
+.foot__nav {
+  display: grid;
+  gap: 14px;
+  justify-items: start;
+}
+
+.foot__nav a {
+  font-size: 15px;
+  font-weight: 500;
+  color: var(--ink-2);
+  transition: color 0.28s var(--ease);
+}
+
+.foot__nav a:hover {
+  color: var(--ink);
+}
+
+.foot__base {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px 28px;
+  justify-content: space-between;
+  margin-top: clamp(40px, 5vw, 56px);
+  padding-top: 24px;
+  border-top: 1px solid var(--rule);
+}
+
+@media (max-width: 560px) {
+  .foot__nav {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px 24px;
+    width: 100%;
+  }
+}

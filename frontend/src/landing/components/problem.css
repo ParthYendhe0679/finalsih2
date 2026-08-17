@@ -1,0 +1,73 @@
+#the-problem .shell {
+  max-width: 1560px;
+  padding-inline: clamp(24px, 4vw, 64px);
+}
+
+.converge {
+  margin: 0;
+  padding: clamp(20px, 3vw, 40px) 0 clamp(8px, 2vw, 24px);
+  width: 100%;
+}
+
+.converge__svg {
+  width: 100%;
+  max-width: 1440px;
+  margin-inline: auto;
+}
+
+.converge__label {
+  font-family: var(--font-sans);
+  font-size: 21px;
+  font-weight: 500;
+  letter-spacing: -0.008em;
+  fill: var(--ink);
+}
+
+.converge__nodeTop {
+  font-family: var(--font-mono);
+  font-size: 14px;
+  letter-spacing: 0.11em;
+  text-transform: uppercase;
+  fill: #fff;
+}
+
+.converge__ring {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: ring-turn 70s linear infinite;
+}
+
+@keyframes ring-turn {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.converge__in,
+.converge__out,
+.converge__node {
+  opacity: 0;
+  transition: opacity 0.8s var(--ease);
+  transition-delay: var(--d, 0ms);
+}
+
+[data-reveal='in'] .converge__in,
+[data-reveal='in'] .converge__out,
+[data-reveal='in'] .converge__node {
+  opacity: 1;
+}
+
+[data-reveal='in'] .converge__out {
+  transition-delay: 900ms;
+}
+
+@media (max-width: 640px) {
+  .converge__svg {
+    min-width: 620px;
+  }
+
+  .converge {
+    overflow-x: auto;
+    padding-bottom: 12px;
+  }
+}

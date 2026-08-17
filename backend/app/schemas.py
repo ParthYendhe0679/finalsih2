@@ -2,12 +2,12 @@ from pydantic import BaseModel, ConfigDict, Field
 from typing import Optional, List
 
 class ShipBase(BaseModel):
-    name: str = Field(..., example="Aegir Pride")
-    imo: str = Field(..., example="IMO9876543")
-    displacement: float = Field(..., example=55000.0)
-    frontal_area: float = Field(..., example=1200.0)
-    engine_efficiency: float = Field(..., example=0.45)
-    sfoc: float = Field(..., example=170.0)
+    name: str = Field(..., json_schema_extra={"example": "Aegir Pride"})
+    imo: str = Field(..., json_schema_extra={"example": "IMO9876543"})
+    displacement: float = Field(..., json_schema_extra={"example": 55000.0})
+    frontal_area: float = Field(..., json_schema_extra={"example": 1200.0})
+    engine_efficiency: float = Field(..., json_schema_extra={"example": 0.45})
+    sfoc: float = Field(..., json_schema_extra={"example": 170.0})
     risk_index: Optional[float] = 15.0
     maintenance_schedule: Optional[str] = "Next maintenance: 2026-12-15"
     parts_replacement_log: Optional[str] = "Filter replacement (2026-06-01)"

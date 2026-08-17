@@ -1,3 +1,4 @@
+from contextlib import asynccontextmanager
 from fastapi import FastAPI, Depends, HTTPException, status
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
@@ -8,21 +9,22 @@ from . import models, schemas, crud
 from .raster_parser import env_grid
 from .mopbd_engine import calculate_pareto_routes, DSLite, coord_to_grid, PORTS, calculate_edge_vector
 
-app = FastAPI(title="Aegir Maritime OS Routing API")
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Ensure database schema and tables exist on startup
+    Base.metadata.create_all(bind=engine)
+    yield
+
+app = FastAPI(title="Aegir Maritime OS Routing API", lifespan=lifespan)
 
 # Configure CORS
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # For production, restrict this. For local development, '*' is perfect.
+    allow_origins=["*"],  # For local development
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
-@app.on_event("startup")
-def startup_event():
-    # Make sure DB schema is created
-    Base.metadata.create_all(bind=engine)
 
 # --- Ship CRUD Endpoints ---
 

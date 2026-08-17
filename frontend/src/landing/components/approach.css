@@ -1,0 +1,164 @@
+.pillars {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0;
+}
+
+/* Hairline-separated columns rather than boxed cards — reads as a
+   specification sheet instead of a marketing grid. */
+.pillar {
+  position: relative;
+  padding: 26px clamp(18px, 1.9vw, 28px) 6px;
+  border-top: 1px solid var(--ink);
+}
+
+.pillar + .pillar {
+  border-left: 1px solid var(--rule);
+}
+
+.pillar:first-child {
+  padding-left: 0;
+}
+
+.pillar:last-child {
+  padding-right: 0;
+}
+
+.pillar__num {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.16em;
+  color: var(--sea-600);
+}
+
+.pillar__figure {
+  margin: 18px 0 22px;
+}
+
+.fig {
+  width: 100%;
+  height: auto;
+  overflow: visible;
+}
+
+.fig__axis {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  fill: var(--ink-muted);
+}
+
+.pillar__title {
+  font-size: 1.1875rem;
+  font-weight: 600;
+  letter-spacing: -0.012em;
+  color: var(--ink);
+}
+
+.pillar__body {
+  margin-top: 12px;
+  font-size: 15px;
+  line-height: 1.65;
+  color: var(--ink-2);
+  text-wrap: pretty;
+}
+
+.pillar__meta {
+  margin-top: 18px;
+  padding-top: 14px;
+  border-top: 1px solid var(--rule);
+  font-size: 12px;
+  color: var(--ink-muted);
+}
+
+/* ---------- ambient motion in the diagrams ---------- */
+
+.vecfield g {
+  animation: vec-sway 9s var(--ease-soft) infinite alternate;
+  animation-delay: calc(var(--i) * -0.14s);
+  transform-box: fill-box;
+  transform-origin: center;
+}
+
+@keyframes vec-sway {
+  from {
+    opacity: 0.35;
+  }
+  to {
+    opacity: 0.95;
+  }
+}
+
+.adapt-line {
+  stroke-dasharray: 210;
+  stroke-dashoffset: 210;
+  transition: stroke-dashoffset 1.8s var(--ease) 350ms;
+}
+
+[data-reveal='in'] .adapt-line {
+  stroke-dashoffset: 0;
+}
+
+.adapt-node {
+  animation: live-ping-sm 3.8s var(--ease-soft) infinite;
+}
+
+@keyframes live-ping-sm {
+  0%,
+  100% {
+    r: 3.2;
+    opacity: 1;
+  }
+  50% {
+    r: 4.4;
+    opacity: 0.65;
+  }
+}
+
+/* ---------- responsive ---------- */
+
+@media (max-width: 1080px) {
+  .pillars {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    row-gap: 8px;
+  }
+
+  .pillar {
+    padding-inline: clamp(18px, 3vw, 30px);
+  }
+
+  .pillar:first-child,
+  .pillar:nth-child(3) {
+    padding-left: 0;
+  }
+
+  .pillar:nth-child(2),
+  .pillar:last-child {
+    padding-right: 0;
+  }
+
+  .pillar:nth-child(odd) {
+    border-left: 0;
+  }
+}
+
+@media (max-width: 620px) {
+  .pillars {
+    grid-template-columns: 1fr;
+  }
+
+  .pillar {
+    padding-inline: 0;
+    padding-bottom: 30px;
+  }
+
+  .pillar + .pillar {
+    border-left: 0;
+  }
+
+  .pillar__figure {
+    max-width: 260px;
+  }
+}

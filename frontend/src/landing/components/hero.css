@@ -1,0 +1,231 @@
+.hero {
+  position: relative;
+  padding-top: clamp(104px, 12vh, 132px);
+  padding-bottom: clamp(48px, 6vw, 80px);
+  overflow: hidden;
+}
+
+/* one very restrained wash of blue behind the chart side */
+.hero__wash {
+  position: absolute;
+  inset: -20% -10% auto 30%;
+  height: 120%;
+  background:
+    radial-gradient(58% 52% at 68% 34%, rgba(159, 199, 227, 0.28) 0%, rgba(159, 199, 227, 0) 68%),
+    radial-gradient(46% 40% at 92% 74%, rgba(190, 216, 236, 0.24) 0%, rgba(190, 216, 236, 0) 70%);
+  pointer-events: none;
+}
+
+.hero .shell {
+  max-width: 1600px;
+  padding-inline: clamp(28px, 4vw, 68px);
+}
+
+.hero__grid {
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(0, 0.85fr) minmax(0, 1.15fr);
+  gap: clamp(36px, 4.5vw, 72px);
+  align-items: center;
+}
+
+/* ---------- copy ---------- */
+
+.hero__copy {
+  position: relative;
+  z-index: 2;
+  transform: translateY(calc(var(--pc, 0px) * -1));
+  max-width: 560px;
+  justify-self: start;
+}
+
+.hero__copy .eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-family: var(--font-sans);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: #2563eb;
+  background: #eff6ff;
+  border: 1px solid #dbeafe;
+  padding: 6px 14px;
+  border-radius: 9999px;
+  box-shadow: 0 1px 2px rgba(37, 99, 235, 0.08);
+}
+
+.hero__copy .eyebrow::before {
+  content: '';
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #2563eb;
+  box-shadow: 0 0 8px rgba(37, 99, 235, 0.6);
+  flex: none;
+}
+
+.hero__title {
+  margin-top: 20px;
+  font-family: var(--font-sans);
+  font-size: clamp(3rem, 5.2vw, 4.6rem);
+  line-height: 1.0;
+  font-weight: 800;
+  letter-spacing: -0.035em;
+  text-transform: uppercase;
+  color: #0f172a;
+  white-space: nowrap;
+}
+
+[data-theme='dark'] .hero__title {
+  color: #f8fafc;
+}
+
+.hero__sub {
+  margin-top: 14px;
+  font-family: var(--font-sans);
+  font-size: clamp(1.25rem, 2vw, 1.75rem);
+  font-weight: 700;
+  line-height: 1.25;
+  letter-spacing: -0.02em;
+  background: linear-gradient(135deg, #1e3a8a 0%, #2563eb 55%, #0284c7 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+[data-theme='dark'] .hero__sub {
+  background: linear-gradient(135deg, #60a5fa 0%, #38bdf8 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.hero__line {
+  margin-top: 16px;
+  font-family: var(--font-sans);
+  font-size: clamp(1.05rem, 1.2vw, 1.15rem);
+  line-height: 1.6;
+  font-weight: 450;
+  color: #475569;
+  max-width: 48ch;
+}
+
+[data-theme='dark'] .hero__line {
+  color: #94a3b8;
+}
+
+.hero__actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 16px;
+  margin-top: 36px;
+}
+
+/* ---------- chart side ---------- */
+
+.hero__scene {
+  position: relative;
+  z-index: 1;
+  transform: translateY(var(--px, 0px));
+  width: 100%;
+}
+
+.ocean {
+  position: relative;
+  width: 100%;
+  max-width: 720px;
+  margin-inline: auto;
+  overflow: visible;
+}
+
+/* ---------- scroll cue ---------- */
+
+.hero__scroll {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: max-content;
+  margin: clamp(48px, 6vw, 76px) auto 0;
+  color: var(--ink-faint);
+  transition: color 0.3s var(--ease);
+}
+
+.hero__scroll:hover {
+  color: var(--ink-2);
+}
+
+.hero__scroll-rail {
+  position: relative;
+  display: block;
+  width: 1px;
+  height: 40px;
+  background: var(--rule-strong);
+  overflow: hidden;
+}
+
+.hero__scroll-dot {
+  position: absolute;
+  inset-inline: -1px;
+  top: 0;
+  height: 14px;
+  background: var(--sea-600);
+  animation: scroll-run 2.6s var(--ease-soft) infinite;
+}
+
+@keyframes scroll-run {
+  0% {
+    transform: translateY(-16px);
+    opacity: 0;
+  }
+  35%,
+  65% {
+    opacity: 1;
+  }
+  100% {
+    transform: translateY(40px);
+    opacity: 0;
+  }
+}
+
+/* ---------- responsive ---------- */
+
+@media (max-width: 1080px) {
+  .hero__grid {
+    grid-template-columns: 1fr;
+    gap: 48px;
+  }
+
+  .hero__copy,
+  .hero__scene {
+    transform: none;
+  }
+
+  .ocean {
+    transform: none;
+  }
+
+  .hero__wash {
+    inset: -10% -20% auto -10%;
+  }
+
+  .hero__copy {
+    max-width: 640px;
+  }
+}
+
+@media (max-width: 640px) {
+  .hero {
+    padding-top: 116px;
+  }
+
+  .hero__title {
+    white-space: normal;
+    letter-spacing: -0.02em;
+  }
+
+  .hero__actions .btn {
+    width: 100%;
+  }
+}

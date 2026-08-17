@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { AppProvider, useApp } from './context/AppContext';
 import Navbar from './components/Navbar';
 import Sidebar from './components/Sidebar';
@@ -6,9 +6,10 @@ import MapComponent from './components/MapComponent';
 import ParetoDock from './components/ParetoDock';
 import FleetRegistry from './components/FleetRegistry';
 import VoyageAnalytics from './components/VoyageAnalytics';
+import LandingPage from './landing/LandingPage';
 import { LayoutDashboard, Shield, Fuel, Clock, BarChart3, Database, Wallet, TrendingUp } from 'lucide-react';
 
-function DashboardContent() {
+function DashboardContent({ onBackToLanding }) {
   const { routes, ships } = useApp();
   const [activeDashboard, setActiveDashboard] = useState('command'); // 'command' or 'fleet'
   const [fleetSubTab, setFleetSubTab] = useState('registry'); // 'registry' or 'analytics'
@@ -21,8 +22,8 @@ function DashboardContent() {
 
   return (
     <div className="flex flex-col h-screen overflow-hidden bg-[#F7F9FC] text-slate-800 font-sans">
-      {/* Persistent Top Header Navbar */}
-      <Navbar />
+      {/* Persistent Top Header Navbar with Back to Landing */}
+      <Navbar onBackToLanding={onBackToLanding} />
 
       {/* Main Tabbed Interface Navigation */}
       <div className="bg-white border-b border-slate-200/80 px-6 flex items-center justify-between py-2.5 shrink-0 shadow-xs">
@@ -162,9 +163,46 @@ function DashboardContent() {
 }
 
 export default function App() {
+  const [currentView, setCurrentView] = useState(() => {
+    if (typeof window !== 'undefined' && window.location.hash === '#dashboard') {
+      return 'dashboard';
+    }
+    return 'landing';
+  });
+
+  useEffect(() => {
+    const handleHashChange = () => {
+      if (window.location.hash === '#dashboard') {
+        setCurrentView('dashboard');
+      } else if (!window.location.hash || window.location.hash === '#top' || window.location.hash.startsWith('#intelligence') || window.location.hash.startsWith('#approach') || window.location.hash.startsWith('#routes') || window.location.hash.startsWith('#adaptive')) {
+        setCurrentView('landing');
+      }
+    };
+
+    window.addEventListener('hashchange', handleHashChange);
+    return () => window.removeEventListener('hashchange', handleHashChange);
+  }, []);
+
+  const handleLaunchDashboard = () => {
+    setCurrentView('dashboard');
+    window.location.hash = '#dashboard';
+    window.scrollTo(0, 0);
+  };
+
+  const handleBackToLanding = () => {
+    setCurrentView('landing');
+    window.location.hash = '';
+    window.scrollTo(0, 0);
+  };
+
   return (
     <AppProvider>
-      <DashboardContent />
+      {currentView === 'landing' ? (
+        <LandingPage onLaunchDashboard={handleLaunchDashboard} />
+      ) : (
+        <DashboardContent onBackToLanding={handleBackToLanding} />
+      )}
     </AppProvider>
   );
 }
+
