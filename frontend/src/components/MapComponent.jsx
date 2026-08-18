@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { useApp } from '../context/AppContext';
 import { MapContainer, TileLayer, Polyline, Marker, Popup, Circle, useMap } from 'react-leaflet';
 import L from 'leaflet';
@@ -71,17 +71,142 @@ const portIcon = L.divIcon({
 });
 
 // A component to automatically adjust map view to fit paths
-function MapBoundsController({ routes }) {
+function MapBoundsController({ routes, fitToken }) {
   const map = useMap();
+  const routesRef = useRef(routes);
+  routesRef.current = routes;
+
+  // Keyed on fitToken alone, deliberately. The view is re-framed when a new
+  // voyage is plotted, not every time a drag-to-reroute replaces the routes --
+  // snap-zooming the moment the operator releases the vessel is disorienting.
   useEffect(() => {
-    if (routes && routes.balanced && routes.balanced.waypoints.length > 0) {
-      // Find bounding box for balanced path
-      const pts = routes.balanced.waypoints;
-      const bounds = L.latLngBounds(pts);
-      map.fitBounds(bounds, { padding: [50, 50] });
+    const pts = routesRef.current?.balanced?.waypoints;
+    if (pts && pts.length > 0) {
+      map.fitBounds(L.latLngBounds(pts), { padding: [50, 50] });
     }
-  }, [routes, map]);
+  }, [fitToken, map]);
   return null;
+}
+
+/**
+ * Index of the route waypoint nearest a coordinate.
+ *
+ * Measured in screen space rather than in degrees, so the snap tracks the cursor
+ * the same way at every zoom level.
+ */
+function nearestWaypointIndex(map, projected, latlng) {
+  const cursor = map.latLngToLayerPoint(latlng);
+  let best = 0;
+  let bestDist = Infinity;
+  for (let i = 0; i < projected.length; i++) {
+    const dist = cursor.distanceTo(projected[i]);
+    if (dist < bestDist) {
+      bestDist = dist;
+      best = i;
+    }
+  }
+  return best;
+}
+
+/**
+ * The vessel marker, draggable along its own track.
+ *
+ * Dragging is constrained to the route line: every drag event snaps the marker
+ * back onto the nearest waypoint, so the ship slides along the plotted course
+ * instead of being dropped onto open water. On release the drop point is handed
+ * to `onCommit`, which re-solves the Pareto front from there.
+ *
+ * The live drag index is kept in a ref and never in state: re-rendering this
+ * component mid-drag makes react-leaflet call `marker.setIcon()`, and Leaflet
+ * rebuilds the marker's drag handler from scratch on setIcon, which aborts the
+ * drag in progress. The marker is therefore moved imperatively while dragging,
+ * and React state is only touched once the drag is over.
+ */
+function DraggableVessel({ waypoints, color, canDrag, index, onCommit }) {
+  const map = useMap();
+  // Where the vessel is parked after a drop while the front is re-solved.
+  // Null means "wherever `index` says".
+  const [heldIdx, setHeldIdx] = useState(null);
+  const dragIdxRef = useRef(null);
+  const projectedRef = useRef(null);
+
+  // For the same reason: a fresh L.divIcon on every render reads to
+  // react-leaflet as an icon change, so its identity has to stay stable.
+  const icon = useMemo(() => createShipIcon(color), [color]);
+
+  // Release the held index whenever the underlying track changes. After a
+  // successful reroute the new route already begins at the drop point, so the
+  // vessel belongs at index 0 of the new waypoints -- holding a stale index here
+  // would briefly park it at the wrong end of the shorter route.
+  useEffect(() => {
+    dragIdxRef.current = null;
+    setHeldIdx(null);
+  }, [waypoints]);
+
+  const shownIdx = Math.min(heldIdx ?? index, waypoints.length - 1);
+  const position = waypoints[shownIdx];
+
+  const eventHandlers = useMemo(() => ({
+    dragstart: () => {
+      dragIdxRef.current = index;
+      // The map cannot pan or zoom while a marker is being dragged, so the track
+      // only needs projecting once per drag rather than once per mouse move.
+      projectedRef.current = waypoints.map(
+        ([lat, lon]) => map.latLngToLayerPoint(L.latLng(lat, lon))
+      );
+    },
+    drag: (e) => {
+      const marker = e.target;
+      if (!projectedRef.current) return;
+      const i = nearestWaypointIndex(map, projectedRef.current, marker.getLatLng());
+      dragIdxRef.current = i;
+      marker.setLatLng(L.latLng(waypoints[i][0], waypoints[i][1]));
+    },
+    dragend: async () => {
+      const dropped = dragIdxRef.current;
+      projectedRef.current = null;
+      // A drop back where it started, or onto the destination berth itself,
+      // has nothing to re-solve; the marker simply springs back.
+      if (dropped === null || dropped === index || dropped >= waypoints.length - 1) {
+        setHeldIdx(null);
+        return;
+      }
+      // Park the vessel at the drop point while the front is re-solved -- the
+      // effect above releases it once the new track arrives. Only a failed
+      // reroute springs it back to where the voyage left it.
+      setHeldIdx(dropped);
+      const ok = await onCommit(dropped);
+      if (!ok) setHeldIdx(null);
+    }
+  }), [map, waypoints, index, onCommit]);
+
+  if (!position) return null;
+
+  return (
+    <Marker
+      position={position}
+      icon={icon}
+      draggable={canDrag}
+      // Keeps the vessel above the port pin it sits on at the start of a voyage,
+      // so a grab at the origin lands on the ship and not on the port marker.
+      zIndexOffset={1000}
+      eventHandlers={eventHandlers}
+    >
+      <Popup>
+        <div className="text-xs font-sans text-slate-800 p-1">
+          <p className="font-bold uppercase text-blue-600">Vessel Position</p>
+          <p className="text-slate-600">Latitude: <span className="font-medium text-slate-900">{position[0].toFixed(4)}°N</span></p>
+          <p className="text-slate-600">Longitude: <span className="font-medium text-slate-900">{position[1].toFixed(4)}°E</span></p>
+          <p className="text-slate-600">Waypoint: <span className="font-medium text-slate-900">{shownIdx + 1} / {waypoints.length}</span></p>
+          {canDrag && (
+            <p className="mt-1.5 pt-1.5 border-t border-slate-100 text-[11px] text-slate-500 font-medium">
+              Drag along the track to replan from that point.
+            </p>
+          )}
+        </div>
+      </Popup>
+    </Marker>
+  );
 }
 
 export default function MapComponent() {
@@ -92,7 +217,12 @@ export default function MapComponent() {
     weatherShift,
     stormPosition,
     currentVesselIndex,
-    weatherLayers
+    weatherLayers,
+    loading,
+    isRerouting,
+    hasRerouted,
+    fitToken,
+    rerouteFromIndex
   } = useApp();
 
   // Layer toggles
@@ -187,7 +317,6 @@ export default function MapComponent() {
   };
 
   const activeWaypoints = routes && routes[selectedRouteKey]?.waypoints;
-  const currentVesselPosition = activeWaypoints && activeWaypoints[currentVesselIndex];
 
   return (
     <div className="relative flex-1 h-[55vh] lg:h-auto border-b lg:border-b-0 lg:border-r border-slate-200/80 bg-slate-100 font-sans">
@@ -204,7 +333,7 @@ export default function MapComponent() {
         />
 
         {/* Map FitBounds Controller */}
-        {routes && <MapBoundsController routes={routes} />}
+        <MapBoundsController routes={routes} fitToken={fitToken} />
 
         {/* Render raster layers overlays */}
         {renderEnvironmentalOverlay()}
@@ -252,7 +381,12 @@ export default function MapComponent() {
         {routes && (
           <>
             <Marker position={routes.balanced.waypoints[0]} icon={portIcon}>
-              <Popup><div className="text-xs font-sans font-bold text-slate-800">Departure Port</div></Popup>
+              <Popup>
+                <div className="text-xs font-sans font-bold text-slate-800">
+                  {/* After a reroute this pin sits at the drop point, not at the berth */}
+                  {hasRerouted ? 'Voyage Resumed From' : 'Departure Port'}
+                </div>
+              </Popup>
             </Marker>
             <Marker position={routes.balanced.waypoints[routes.balanced.waypoints.length - 1]} icon={portIcon}>
               <Popup><div className="text-xs font-sans font-bold text-slate-800">Arrival Port</div></Popup>
@@ -260,18 +394,15 @@ export default function MapComponent() {
           </>
         )}
 
-        {/* Current Vessel Marker */}
-        {currentVesselPosition && (
-          <Marker position={currentVesselPosition} icon={createShipIcon(routeConfigs[selectedRouteKey]?.color)}>
-            <Popup>
-              <div className="text-xs font-sans text-slate-800 p-1">
-                <p className="font-bold uppercase text-blue-600">Vessel Position</p>
-                <p className="text-slate-600">Latitude: <span className="font-medium text-slate-900">{currentVesselPosition[0].toFixed(4)}°N</span></p>
-                <p className="text-slate-600">Longitude: <span className="font-medium text-slate-900">{currentVesselPosition[1].toFixed(4)}°E</span></p>
-                <p className="text-slate-600">Waypoint: <span className="font-medium text-slate-900">{currentVesselIndex + 1} / {activeWaypoints.length}</span></p>
-              </div>
-            </Popup>
-          </Marker>
+        {/* Current Vessel Marker, draggable along its own track */}
+        {activeWaypoints && activeWaypoints.length > 0 && (
+          <DraggableVessel
+            waypoints={activeWaypoints}
+            color={routeConfigs[selectedRouteKey]?.color}
+            canDrag={!loading && !isRerouting}
+            index={currentVesselIndex}
+            onCommit={rerouteFromIndex}
+          />
         )}
 
         {/* Simulated storm overlay */}
@@ -295,6 +426,23 @@ export default function MapComponent() {
           </Circle>
         )}
       </MapContainer>
+
+      {/* Reroute-in-progress overlay */}
+      {isRerouting && (
+        <div className="absolute inset-0 z-[1200] flex items-center justify-center bg-slate-900/10 backdrop-blur-[1px] pointer-events-none">
+          <div className="flex items-center space-x-2.5 bg-white/95 border border-slate-200 px-4 py-2.5 rounded-2xl shadow-md text-xs font-semibold text-slate-700">
+            <Navigation className="h-4 w-4 text-blue-600 animate-spin" />
+            <span>Recomputing Pareto front from vessel position…</span>
+          </div>
+        </div>
+      )}
+
+      {/* Drag-to-replan hint */}
+      {routes && !isRerouting && (
+        <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-[1000] bg-white/90 border border-slate-200/80 px-3 py-1 rounded-full text-[10px] font-semibold text-slate-600 shadow-xs whitespace-nowrap">
+          Drag the vessel along its track to replan from that point
+        </div>
+      )}
 
       {/* Layer selector controls HUD */}
       <div className="absolute top-4 right-4 z-[1000] bg-white/95 border border-slate-200 p-3.5 rounded-2xl shadow-md backdrop-blur-md text-xs font-sans space-y-2.5 max-w-[210px]">
