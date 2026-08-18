@@ -1,15 +1,16 @@
 import itertools
 
 import pytest
-from fastapi.testclient import TestClient
 
-from app.main import app
 from app.mopbd_engine import (
     DSLite, coord_to_grid, PORTS, can_traverse, is_navigable, calculate_edge_vector,
 )
 from app.raster_parser import env_grid
 
-client = TestClient(app)
+# tests/ has no __init__.py, so pytest puts this directory on sys.path directly
+from api_client import make_client
+
+client = make_client()
 
 SHIP_PROFILE = {
     "displacement": 55000.0,

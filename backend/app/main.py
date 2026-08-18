@@ -12,7 +12,7 @@ from . import models, schemas, crud  # noqa: F401
 from .raster_parser import env_grid
 from .grid import haversine_distance
 from .mopbd_engine import (
-    calculate_pareto_routes, DSLite, PORTS,
+    calculate_pareto_routes, calculate_routes_from_point, DSLite, PORTS,
     get_path_metrics, WEIGHT_PROFILES, RouteUnreachable,
 )
 
@@ -167,6 +167,42 @@ def calculate_routes(request: schemas.RouteRequest, db: Session = Depends(get_db
             destination=request.destination,
             ship_profile=ship_profile,
             custom_weights=custom_w
+        )
+    except RouteUnreachable as e:
+        raise HTTPException(status_code=422, detail=str(e))
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/routes/reroute")
+def reroute_from_position(request: schemas.RerouteRequest, db: Session = Depends(get_db)):
+    """
+    Recompute the Pareto front from the position the operator dragged the vessel
+    to. The sailed leg is discarded: the drop point becomes the new departure, so
+    every route in the response starts there.
+    """
+    db_ship = crud.get_ship(db, ship_id=request.ship_id)
+    if not db_ship:
+        raise HTTPException(status_code=404, detail="Selected ship profile not found")
+
+    ship_profile = {
+        "displacement": db_ship.displacement,
+        "frontal_area": db_ship.frontal_area,
+        "engine_efficiency": db_ship.engine_efficiency,
+        "sfoc": db_ship.sfoc
+    }
+
+    try:
+        return calculate_routes_from_point(
+            resume_coord=(request.resume_lat, request.resume_lon),
+            destination=request.destination,
+            ship_profile=ship_profile,
+            custom_weights={
+                "safety_weight": request.weights.safety_weight,
+                "fuel_weight": request.weights.fuel_weight,
+                "time_weight": request.weights.time_weight
+            }
         )
     except RouteUnreachable as e:
         raise HTTPException(status_code=422, detail=str(e))

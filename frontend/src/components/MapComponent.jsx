@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useApp } from '../context/AppContext';
 import { MapContainer, TileLayer, Polyline, Marker, Popup, Circle, useMap } from 'react-leaflet';
 import L from 'leaflet';
@@ -138,16 +138,35 @@ const portIcon = L.divIcon({
 });
 
 // A component to automatically adjust map view to fit paths
-function MapBoundsController({ routes }) {
+function MapBoundsController({ routes, fitToken }) {
   const map = useMap();
+  const routesRef = useRef(routes);
+  routesRef.current = routes;
+
   useEffect(() => {
-    if (routes && routes.balanced && routes.balanced.waypoints.length > 0) {
-      const pts = routes.balanced.waypoints;
-      const bounds = L.latLngBounds(pts);
-      map.fitBounds(bounds, { padding: [50, 50] });
+    const pts = routesRef.current?.balanced?.waypoints;
+    if (pts && pts.length > 0) {
+      map.fitBounds(L.latLngBounds(pts), { padding: [50, 50] });
     }
-  }, [routes, map]);
+  }, [fitToken, map]);
   return null;
+}
+
+/**
+ * Index of the route waypoint nearest a coordinate in screen space.
+ */
+function nearestWaypointIndex(map, projected, latlng) {
+  const cursor = map.latLngToLayerPoint(latlng);
+  let best = 0;
+  let bestDist = Infinity;
+  for (let i = 0; i < projected.length; i++) {
+    const dist = cursor.distanceTo(projected[i]);
+    if (dist < bestDist) {
+      bestDist = dist;
+      best = i;
+    }
+  }
+  return best;
 }
 
 // ---- Route configuration with A/B/C/D naming ----
@@ -157,6 +176,109 @@ const ROUTE_CONFIGS = {
   safest:         { id: 'C', color: '#10B981', label: 'Route C — Safest',          weight: 4.5 },
   balanced:       { id: 'D', color: '#7C3AED', label: 'Route D — Recommended',     weight: 6   },
 };
+
+/**
+ * Draggable vessel marker along its track.
+ */
+function DraggableVessel({ waypoints, color, canDrag, index, bearing, onCommit, shipInfo }) {
+  const map = useMap();
+  const [heldIdx, setHeldIdx] = useState(null);
+  const dragIdxRef = useRef(null);
+  const projectedRef = useRef(null);
+
+  const icon = useMemo(() => createShipMarkerIcon(color, bearing), [color, bearing]);
+
+  useEffect(() => {
+    dragIdxRef.current = null;
+    setHeldIdx(null);
+  }, [waypoints]);
+
+  const shownIdx = Math.min(heldIdx ?? index, waypoints.length - 1);
+  const position = waypoints[shownIdx];
+
+  const eventHandlers = useMemo(() => ({
+    dragstart: () => {
+      dragIdxRef.current = index;
+      projectedRef.current = waypoints.map(
+        ([lat, lon]) => map.latLngToLayerPoint(L.latLng(lat, lon))
+      );
+    },
+    drag: (e) => {
+      const marker = e.target;
+      if (!projectedRef.current) return;
+      const i = nearestWaypointIndex(map, projectedRef.current, marker.getLatLng());
+      dragIdxRef.current = i;
+      marker.setLatLng(L.latLng(waypoints[i][0], waypoints[i][1]));
+    },
+    dragend: async () => {
+      const dropped = dragIdxRef.current;
+      projectedRef.current = null;
+      if (dropped === null || dropped === index || dropped >= waypoints.length - 1) {
+        setHeldIdx(null);
+        return;
+      }
+      setHeldIdx(dropped);
+      const ok = await onCommit(dropped);
+      if (!ok) setHeldIdx(null);
+    }
+  }), [map, waypoints, index, onCommit]);
+
+  if (!position) return null;
+
+  return (
+    <Marker
+      position={position}
+      icon={icon}
+      draggable={canDrag}
+      zIndexOffset={1000}
+      eventHandlers={eventHandlers}
+    >
+      <Popup>
+        <div className="text-xs font-sans text-slate-800 p-1.5 min-w-[200px] space-y-1.5">
+          <div className="flex items-center justify-between border-b border-slate-100 pb-1.5">
+            <p className="font-bold text-sm text-slate-900">{shipInfo.name}</p>
+            <span className="text-[9px] font-bold px-2 py-0.5 rounded-full bg-blue-50 text-blue-600 border border-blue-200 uppercase">
+              {shipInfo.type}
+            </span>
+          </div>
+          <div className="grid grid-cols-2 gap-x-3 gap-y-1 text-[11px]">
+            <div>
+              <span className="text-slate-400 font-medium">Speed</span>
+              <p className="font-bold text-slate-800">{shipInfo.speed} kn</p>
+            </div>
+            <div>
+              <span className="text-slate-400 font-medium">Fuel</span>
+              <p className="font-bold text-slate-800">{shipInfo.fuelPct}%</p>
+            </div>
+            <div>
+              <span className="text-slate-400 font-medium">Route</span>
+              <p className="font-bold text-slate-800" style={{ color }}>
+                {shipInfo.routeLabel}
+              </p>
+            </div>
+            <div>
+              <span className="text-slate-400 font-medium">ETA</span>
+              <p className="font-bold text-slate-800">{shipInfo.eta} h</p>
+            </div>
+            <div>
+              <span className="text-slate-400 font-medium">Safety</span>
+              <p className="font-bold text-emerald-600">{shipInfo.safetyScore}/100</p>
+            </div>
+            <div>
+              <span className="text-slate-400 font-medium">Position</span>
+              <p className="font-bold text-slate-800">{position[0].toFixed(2)}°, {position[1].toFixed(2)}°</p>
+            </div>
+          </div>
+          {canDrag && (
+            <p className="mt-1.5 pt-1.5 border-t border-slate-100 text-[10px] text-slate-500 font-medium">
+              Drag vessel along track to replan from that point.
+            </p>
+          )}
+        </div>
+      </Popup>
+    </Marker>
+  );
+}
 
 export default function MapComponent() {
   const {
@@ -175,6 +297,11 @@ export default function MapComponent() {
     envSyncing,
     syncOpenMeteo,
     fetchEnvironment,
+    loading,
+    isRerouting,
+    hasRerouted,
+    fitToken,
+    rerouteFromIndex,
   } = useApp();
 
   // Layer toggles
@@ -279,7 +406,6 @@ export default function MapComponent() {
         if (showWinds && winds) {
           const windSpeed = winds[r][c];
           if (windSpeed > 6) {
-            // Compute approximate wind direction from Arabian Sea monsoon or local gradient
             const windDir = 240 + Math.sin(lat * 0.1) * 30;
             elements.push(
               <Marker
@@ -370,7 +496,7 @@ export default function MapComponent() {
         />
 
         {/* Map FitBounds Controller */}
-        {routes && <MapBoundsController routes={routes} />}
+        <MapBoundsController routes={routes} fitToken={fitToken} />
 
         {/* Render raster layers overlays */}
         {renderEnvironmentalOverlay()}
@@ -436,7 +562,9 @@ export default function MapComponent() {
             <Marker position={routes.balanced.waypoints[0]} icon={portIcon}>
               <Popup>
                 <div className="text-xs font-sans p-1">
-                  <p className="font-bold text-blue-700 uppercase tracking-wide">Departure Port</p>
+                  <p className="font-bold text-blue-700 uppercase tracking-wide">
+                    {hasRerouted ? 'Voyage Resumed From' : 'Departure Port'}
+                  </p>
                   <p className="text-sm font-bold text-slate-900 mt-0.5">{origin}</p>
                 </div>
               </Popup>
@@ -452,54 +580,17 @@ export default function MapComponent() {
           </>
         )}
 
-        {/* Current Vessel Marker */}
-        {currentVesselPosition && (
-          <Marker
-            position={currentVesselPosition}
-            icon={createShipMarkerIcon(
-              ROUTE_CONFIGS[selectedRouteKey]?.color || '#4F46E5',
-              shipBearing
-            )}
-          >
-            <Popup>
-              <div className="text-xs font-sans text-slate-800 p-1.5 min-w-[200px] space-y-1.5">
-                <div className="flex items-center justify-between border-b border-slate-100 pb-1.5">
-                  <p className="font-bold text-sm text-slate-900">{shipInfo.name}</p>
-                  <span className="text-[9px] font-bold px-2 py-0.5 rounded-full bg-blue-50 text-blue-600 border border-blue-200 uppercase">
-                    {shipInfo.type}
-                  </span>
-                </div>
-                <div className="grid grid-cols-2 gap-x-3 gap-y-1 text-[11px]">
-                  <div>
-                    <span className="text-slate-400 font-medium">Speed</span>
-                    <p className="font-bold text-slate-800">{shipInfo.speed} kn</p>
-                  </div>
-                  <div>
-                    <span className="text-slate-400 font-medium">Fuel</span>
-                    <p className="font-bold text-slate-800">{shipInfo.fuelPct}%</p>
-                  </div>
-                  <div>
-                    <span className="text-slate-400 font-medium">Route</span>
-                    <p className="font-bold text-slate-800" style={{ color: ROUTE_CONFIGS[selectedRouteKey]?.color }}>
-                      {ROUTE_CONFIGS[selectedRouteKey]?.id} — {selectedRouteKey === 'balanced' ? 'Recommended' : selectedRouteKey.charAt(0).toUpperCase() + selectedRouteKey.slice(1).replace('_', ' ')}
-                    </p>
-                  </div>
-                  <div>
-                    <span className="text-slate-400 font-medium">ETA</span>
-                    <p className="font-bold text-slate-800">{shipInfo.eta} h</p>
-                  </div>
-                  <div>
-                    <span className="text-slate-400 font-medium">Safety</span>
-                    <p className="font-bold text-emerald-600">{shipInfo.safetyScore}/100</p>
-                  </div>
-                  <div>
-                    <span className="text-slate-400 font-medium">Position</span>
-                    <p className="font-bold text-slate-800">{currentVesselPosition[0].toFixed(2)}°, {currentVesselPosition[1].toFixed(2)}°</p>
-                  </div>
-                </div>
-              </div>
-            </Popup>
-          </Marker>
+        {/* Current Vessel Marker, draggable along its own track */}
+        {activeWaypoints && activeWaypoints.length > 0 && (
+          <DraggableVessel
+            waypoints={activeWaypoints}
+            color={ROUTE_CONFIGS[selectedRouteKey]?.color || '#4F46E5'}
+            canDrag={!loading && !isRerouting}
+            index={currentVesselIndex}
+            bearing={shipBearing}
+            onCommit={rerouteFromIndex}
+            shipInfo={shipInfo}
+          />
         )}
 
         {/* Emergency optimal route */}
@@ -567,6 +658,23 @@ export default function MapComponent() {
           </Circle>
         )}
       </MapContainer>
+
+      {/* Reroute-in-progress overlay */}
+      {isRerouting && (
+        <div className="absolute inset-0 z-[1200] flex items-center justify-center bg-slate-900/10 backdrop-blur-[1px] pointer-events-none">
+          <div className="flex items-center space-x-2.5 bg-white/95 border border-slate-200 px-4 py-2.5 rounded-2xl shadow-md text-xs font-semibold text-slate-700">
+            <Navigation className="h-4 w-4 text-blue-600 animate-spin" />
+            <span>Recomputing Pareto front from vessel position…</span>
+          </div>
+        </div>
+      )}
+
+      {/* Drag-to-replan hint */}
+      {routes && !isRerouting && (
+        <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-[1000] bg-white/90 border border-slate-200/80 px-3 py-1 rounded-full text-[10px] font-semibold text-slate-600 shadow-xs whitespace-nowrap">
+          Drag the vessel along its track to replan from that point
+        </div>
+      )}
 
       {/* Tactical Map Overlays Layer Selector HUD */}
       <div className="absolute top-4 right-4 z-[1000] bg-white/95 border border-slate-200 p-3.5 rounded-2xl shadow-md backdrop-blur-md text-xs font-sans space-y-2.5 max-w-[220px]">

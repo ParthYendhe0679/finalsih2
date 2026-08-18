@@ -697,25 +697,23 @@ def get_path_metrics(path: List[Tuple[float, float]], ship_profile: Dict[str, An
     }
 
 
-def calculate_pareto_routes(origin: str, destination: str, ship_profile: Dict[str, Any],
-                            custom_weights: Dict[str, float]) -> Dict[str, Any]:
+def _solve_front(start_coord: Tuple[float, float], goal_coord: Tuple[float, float],
+                 ship_profile: Dict[str, Any],
+                 custom_weights: Dict[str, float]) -> Dict[str, Any]:
     """
-    Computes a set of Pareto-optimal routes:
+    Computes a set of Pareto-optimal routes between two coordinates:
     1. Route A — Fastest (min time)
     2. Route B — Fuel Optimal (min fuel)
     3. Route C — Safest (min risk & max coastal clearance)
     4. Route D — Recommended (balanced multi-objective)
-    """
-    start_coord = PORTS.get(origin)
-    goal_coord = PORTS.get(destination)
-    if not start_coord or not goal_coord:
-        raise ValueError(f"Origin '{origin}' or Destination '{destination}' not found in ports database.")
 
+    Shared by the port-to-port solve and the mid-voyage re-solve.
+    """
     weight_profiles = dict(WEIGHT_PROFILES)
     weight_profiles["balanced"] = custom_weights
 
     results = {}
-    print(f"\n[Aegir Router] Calculating 4 Pareto-optimal routes: {origin} -> {destination}")
+    print(f"\n[Aegir Router] Calculating 4 Pareto-optimal routes between {start_coord} -> {goal_coord}")
     print(f"[Aegir Router] Minimum Coastal Clearance Constraint: {env_grid.MIN_CLEARANCE_KM} km active.")
 
     for key, weights in weight_profiles.items():
@@ -732,3 +730,34 @@ def calculate_pareto_routes(origin: str, destination: str, ship_profile: Dict[st
         print(f"  > Route {key.upper()}: ETA={metrics['total_time']}h | Fuel={metrics['total_fuel']}g | Risk={metrics['total_risk']} | Min Clearance={metrics['min_clearance_km']} km | Avg Clearance={metrics['avg_clearance_km']} km")
 
     return results
+
+
+def calculate_pareto_routes(origin: str, destination: str, ship_profile: Dict[str, Any],
+                            custom_weights: Dict[str, float]) -> Dict[str, Any]:
+    """
+    Computes a set of Pareto-optimal routes:
+    1. Fastest, 2. Fuel-optimized, 3. Safest, 4. Balanced (UI slider weights).
+    """
+    start_coord = PORTS.get(origin)
+    goal_coord = PORTS.get(destination)
+    if not start_coord or not goal_coord:
+        raise ValueError(f"Origin '{origin}' or Destination '{destination}' not found in ports database.")
+
+    return _solve_front(start_coord, goal_coord, ship_profile, custom_weights)
+
+
+def calculate_routes_from_point(resume_coord: Tuple[float, float], destination: str,
+                                ship_profile: Dict[str, Any],
+                                custom_weights: Dict[str, float]) -> Dict[str, Any]:
+    """
+    Re-solve the front from the vessel's current position onward.
+
+    The already-sailed leg is not part of the result: the drop point is treated as
+    the new departure, so every returned route begins exactly there. A drop that
+    lands on land is snapped to the nearest open-ocean cell by DSLite.
+    """
+    goal_coord = PORTS.get(destination)
+    if not goal_coord:
+        raise ValueError(f"Destination '{destination}' not found in ports database.")
+
+    return _solve_front(tuple(resume_coord), goal_coord, ship_profile, custom_weights)

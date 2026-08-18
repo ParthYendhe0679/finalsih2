@@ -42,6 +42,18 @@ class RouteRequest(BaseModel):
     ship_id: int
     weights: WeightSliders
 
+class RerouteRequest(BaseModel):
+    """
+    Re-solve the front from the vessel's present position after the operator has
+    dragged it along its track. The sailed leg is discarded, so only the drop
+    coordinate is needed -- the snapping itself happens client-side.
+    """
+    destination: str
+    ship_id: int
+    weights: WeightSliders
+    resume_lat: float = Field(..., ge=-90.0, le=90.0)
+    resume_lon: float = Field(..., ge=-180.0, le=180.0)
+
 class ReplanRequest(BaseModel):
     origin: str
     destination: str

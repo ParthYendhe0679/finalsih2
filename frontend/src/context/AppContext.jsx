@@ -21,7 +21,14 @@ export const AppProvider = ({ children }) => {
   
   const [weatherShift, setWeatherShift] = useState(false);
   const [stormPosition, setStormPosition] = useState({ lat: 8.5, lon: 70.0, radius: 450 }); // in km
-  
+
+  // Drag-to-reroute state
+  const [isRerouting, setIsRerouting] = useState(false);
+  const [hasRerouted, setHasRerouted] = useState(false); // relabels the start marker
+  // Bumped only when a brand new voyage is plotted, so the map does not re-fit
+  // its bounds (and snap-zoom) every time the operator drags the vessel.
+  const [fitToken, setFitToken] = useState(0);
+
   // Mid-Voyage Telemetry simulation state
   const [currentVesselIndex, setCurrentVesselIndex] = useState(0);
   const [isPlayingTelemetry, setIsPlayingTelemetry] = useState(false);
@@ -178,11 +185,10 @@ export const AppProvider = ({ children }) => {
     setLoading(true);
     setErrorMsg(null);
     setWeatherShift(false);
-    setCurrentVesselIndex(0);
-    setIsPlayingTelemetry(false);
     setEmergencyType(null);
     setEmergencyRoute(null);
     setEmergencyError(null);
+    setHasRerouted(false);
 
     try {
       const res = await fetch('http://127.0.0.1:8000/api/routes/calculate', {
@@ -202,6 +208,7 @@ export const AppProvider = ({ children }) => {
       if (res.ok) {
         const data = await res.json();
         setRoutes(data);
+        setFitToken((t) => t + 1); // a new voyage: frame it on the map
         fetchWeatherLayers(); // refresh active layers
       } else {
         const err = await res.json();
@@ -211,6 +218,55 @@ export const AppProvider = ({ children }) => {
       setErrorMsg("Failed to communicate with calculation service.");
     } finally {
       setLoading(false);
+    }
+  };
+
+  // Re-solve the Pareto front from the waypoint the vessel was dragged to.
+  // The sailed leg is discarded: that point becomes the new departure for every
+  // profile. Returns true on success so the map can revert the marker on failure.
+  const rerouteFromIndex = async (idx) => {
+    const activeRoute = routes?.[selectedRouteKey];
+    if (!activeRoute || !selectedShipId) return false;
+
+    const dropPoint = activeRoute.waypoints[idx];
+    if (!dropPoint) return false;
+
+    setIsRerouting(true);
+    setErrorMsg(null);
+    setIsPlayingTelemetry(false);
+
+    try {
+      const res = await fetch('http://127.0.0.1:8000/api/routes/reroute', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          destination,
+          ship_id: parseInt(selectedShipId),
+          weights: {
+            safety_weight: safetyWeight,
+            fuel_weight: fuelWeight,
+            time_weight: timeWeight
+          },
+          resume_lat: dropPoint[0],
+          resume_lon: dropPoint[1]
+        })
+      });
+
+      if (!res.ok) {
+        const err = await res.json();
+        setErrorMsg(err.detail || "Reroute from the vessel position failed.");
+        return false;
+      }
+
+      setRoutes(await res.json());
+      setCurrentVesselIndex(0); // the drop point is the new origin
+      setHasRerouted(true);
+      return true;
+    } catch (err) {
+      setErrorMsg("Failed to reach the routing service for the reroute.");
+      return false;
+    } finally {
+      setIsRerouting(false);
     }
   };
 
@@ -369,6 +425,10 @@ export const AppProvider = ({ children }) => {
       weatherShift,
       stormPosition,
       triggerWeatherShiftAndReplan,
+      isRerouting,
+      hasRerouted,
+      fitToken,
+      rerouteFromIndex,
       currentVesselIndex,
       setCurrentVesselIndex,
       isPlayingTelemetry,
