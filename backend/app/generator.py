@@ -75,30 +75,33 @@ def build_land_mask(lats: np.ndarray, lons: np.ndarray) -> np.ndarray:
     return np.asarray(mask, dtype=bool)
 
 
-def coast_distance(land: np.ndarray, max_cells: int = 8) -> np.ndarray:
+def coast_distance(land: np.ndarray, max_cells: int = 40) -> np.ndarray:
     """
-    Distance (in cells, capped at ``max_cells``) from each water cell to the
-    nearest land cell, via successive 8-connected dilations of the land set.
-
-    Feeds a soft standoff penalty so routes keep sensible clearance off a coast
-    instead of scraping along it. Land cells get distance 0.
+    Distance (in cells) from each water cell to the nearest land cell,
+    computed via exact Euclidean Distance Transform (EDT).
+    Land cells get distance 0.0.
     """
-    dist = np.full(land.shape, float(max_cells), dtype=np.float32)
-    dist[land] = 0.0
-
-    frontier = land.copy()
-    for d in range(1, max_cells):
-        padded = np.pad(frontier, 1, mode="constant", constant_values=False)
-        grown = np.zeros_like(frontier)
-        for dr in (0, 1, 2):
-            for dc in (0, 1, 2):
-                grown |= padded[dr:dr + land.shape[0], dc:dc + land.shape[1]]
-        newly = grown & ~frontier
-        if not newly.any():
-            break
-        dist[newly] = float(d)
-        frontier = grown
-    return dist
+    try:
+        import scipy.ndimage
+        dist = scipy.ndimage.distance_transform_edt(~land).astype(np.float32)
+        return dist
+    except Exception:
+        # Fallback: multi-pass BFS dilation
+        dist = np.full(land.shape, float(max_cells), dtype=np.float32)
+        dist[land] = 0.0
+        frontier = land.copy()
+        for d in range(1, max_cells):
+            padded = np.pad(frontier, 1, mode="constant", constant_values=False)
+            grown = np.zeros_like(frontier)
+            for dr in (0, 1, 2):
+                for dc in (0, 1, 2):
+                    grown |= padded[dr:dr + land.shape[0], dc:dc + land.shape[1]]
+            newly = grown & ~frontier
+            if not newly.any():
+                break
+            dist[newly] = float(d)
+            frontier = grown
+        return dist
 
 
 def generate_rasters():

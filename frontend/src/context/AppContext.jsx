@@ -32,6 +32,22 @@ export const AppProvider = ({ children }) => {
   // Ports configurations
   const portsList = ["JNPT", "Colombo", "Singapore", "Aden", "Port Louis"];
 
+  // --- Emergency Rerouting (Step 2/3: select scenario -> optimal route from live position) ---
+  const emergencyTypes = [
+    { key: 'cyclone', label: 'Cyclone / Severe Weather', icon: 'CloudLightning' },
+    { key: 'piracy', label: 'Piracy / Man-Made Threat', icon: 'ShieldAlert' },
+    { key: 'medical', label: 'Medical Emergency', icon: 'HeartPulse' },
+    { key: 'mechanical', label: 'Mechanical Failure', icon: 'Wrench' },
+  ];
+  const [emergencyType, setEmergencyType] = useState(null);
+  const [emergencyRoute, setEmergencyRoute] = useState(null);
+  const [emergencyLoading, setEmergencyLoading] = useState(false);
+  const [emergencyError, setEmergencyError] = useState(null);
+
+  // Open-Meteo Live Environmental Telemetry State
+  const [liveEnvironment, setLiveEnvironment] = useState(null);
+  const [envSyncing, setEnvSyncing] = useState(false);
+
   // Fetch ships registry on load
   const fetchShips = async () => {
     try {
@@ -49,7 +65,7 @@ export const AppProvider = ({ children }) => {
     }
   };
 
-  // Fetch weather layers
+  // Fetch weather and marine layers
   const fetchWeatherLayers = async () => {
     try {
       const res = await fetch('http://127.0.0.1:8000/api/weather/layers');
@@ -62,9 +78,47 @@ export const AppProvider = ({ children }) => {
     }
   };
 
+  // Fetch Open-Meteo live point environment
+  const fetchEnvironment = async (lat, lon, port) => {
+    try {
+      let url = 'http://127.0.0.1:8000/api/environment';
+      if (lat !== undefined && lon !== undefined) {
+        url += `?lat=${lat}&lon=${lon}`;
+      } else if (port) {
+        url += `?port=${encodeURIComponent(port)}`;
+      }
+      const res = await fetch(url);
+      if (res.ok) {
+        const data = await res.json();
+        setLiveEnvironment(data);
+      }
+    } catch (err) {
+      console.error("Error fetching Open-Meteo environment:", err);
+    }
+  };
+
+  // Trigger basin-wide Open-Meteo grid synchronization
+  const syncOpenMeteo = async () => {
+    setEnvSyncing(true);
+    try {
+      const res = await fetch('http://127.0.0.1:8000/api/environment/sync', { method: 'POST' });
+      if (res.ok) {
+        const syncData = await res.json();
+        await fetchWeatherLayers();
+        await fetchEnvironment(undefined, undefined, origin);
+        return syncData;
+      }
+    } catch (err) {
+      console.error("Error synchronizing with Open-Meteo:", err);
+    } finally {
+      setEnvSyncing(false);
+    }
+  };
+
   useEffect(() => {
     fetchShips();
     fetchWeatherLayers();
+    fetchEnvironment(undefined, undefined, 'JNPT');
   }, []);
 
   // Update selected ship details when list or selectedShipId changes
@@ -126,6 +180,9 @@ export const AppProvider = ({ children }) => {
     setWeatherShift(false);
     setCurrentVesselIndex(0);
     setIsPlayingTelemetry(false);
+    setEmergencyType(null);
+    setEmergencyRoute(null);
+    setEmergencyError(null);
 
     try {
       const res = await fetch('http://127.0.0.1:8000/api/routes/calculate', {
@@ -216,6 +273,55 @@ export const AppProvider = ({ children }) => {
     }
   };
 
+  // Step 2 -> 3: Declare a live emergency and recompute the optimal onward
+  // route from the vessel's current position (live telemetry acts as its GPS
+  // fix) to the destination, under weights appropriate to that emergency.
+  const triggerEmergency = async (type) => {
+    if (!routes || !selectedShipId) return;
+
+    const activeRoute = routes[selectedRouteKey];
+    if (!activeRoute) return;
+    const livePos = activeRoute.waypoints[currentVesselIndex] || activeRoute.waypoints[0];
+
+    setEmergencyType(type);
+    setEmergencyLoading(true);
+    setEmergencyError(null);
+
+    try {
+      const res = await fetch('http://127.0.0.1:8000/api/routes/emergency', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          origin,
+          destination,
+          ship_id: parseInt(selectedShipId),
+          emergency_type: type,
+          current_lat: livePos[0],
+          current_lon: livePos[1]
+        })
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        setEmergencyRoute(data);
+        fetchWeatherLayers();
+      } else {
+        const err = await res.json();
+        setEmergencyError(err.detail || "Emergency reroute failed.");
+      }
+    } catch (err) {
+      setEmergencyError("Failed to connect for emergency reroute.");
+    } finally {
+      setEmergencyLoading(false);
+    }
+  };
+
+  const clearEmergency = () => {
+    setEmergencyType(null);
+    setEmergencyRoute(null);
+    setEmergencyError(null);
+  };
+
   // Simulation timer logic for Vessel Telemetry progress
   useEffect(() => {
     let timer;
@@ -269,7 +375,18 @@ export const AppProvider = ({ children }) => {
       setIsPlayingTelemetry,
       weatherLayers,
       portsList,
-      fetchShips
+      fetchShips,
+      emergencyTypes,
+      emergencyType,
+      emergencyRoute,
+      emergencyLoading,
+      emergencyError,
+      triggerEmergency,
+      clearEmergency,
+      liveEnvironment,
+      envSyncing,
+      syncOpenMeteo,
+      fetchEnvironment
     }}>
       {children}
     </AppContext.Provider>

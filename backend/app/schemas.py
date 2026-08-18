@@ -52,3 +52,11 @@ class ReplanRequest(BaseModel):
     storm_lat: float
     storm_lon: float
     storm_radius: float  # in km
+
+class EmergencyRequest(BaseModel):
+    origin: str
+    destination: str
+    ship_id: int
+    emergency_type: str  # "cyclone" | "piracy" | "medical" | "mechanical"
+    current_lat: float  # ship's live position (GPS / telemetry), voyage re-plans from here
+    current_lon: float

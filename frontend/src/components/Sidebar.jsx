@@ -1,6 +1,8 @@
 import React, { useState } from 'react';
 import { useApp } from '../context/AppContext';
-import { Sliders, Anchor, Ship, Navigation, Play, CloudLightning } from 'lucide-react';
+import { Sliders, Anchor, Ship, Navigation, Play, Pause, RotateCcw, CloudLightning, ShieldAlert, HeartPulse, Wrench, TriangleAlert, X } from 'lucide-react';
+
+const EMERGENCY_ICONS = { CloudLightning, ShieldAlert, HeartPulse, Wrench };
 
 export default function Sidebar() {
   const {
@@ -22,7 +24,17 @@ export default function Sidebar() {
     calculateRoutes,
     triggerWeatherShiftAndReplan,
     portsList,
-    routes
+    routes,
+    emergencyTypes,
+    emergencyType,
+    emergencyLoading,
+    emergencyError,
+    triggerEmergency,
+    clearEmergency,
+    isPlayingTelemetry,
+    setIsPlayingTelemetry,
+    currentVesselIndex,
+    setCurrentVesselIndex,
   } = useApp();
 
   const [showOverride, setShowOverride] = useState(false);
@@ -245,9 +257,96 @@ export default function Sidebar() {
           <span>Simulate Weather Shift & Replan</span>
         </button>
 
+        {/* Voyage Simulation Controls */}
+        {routes && (
+          <div className="flex items-center space-x-2">
+            <button
+              onClick={() => setIsPlayingTelemetry(!isPlayingTelemetry)}
+              className={`flex-1 flex items-center justify-center space-x-2 font-semibold text-xs py-2 rounded-xl border transition cursor-pointer ${
+                isPlayingTelemetry
+                  ? 'bg-amber-50 border-amber-200 text-amber-700 hover:bg-amber-100'
+                  : 'bg-emerald-50 border-emerald-200 text-emerald-700 hover:bg-emerald-100'
+              }`}
+            >
+              {isPlayingTelemetry ? (
+                <><Pause className="h-3.5 w-3.5" /><span>Pause Voyage</span></>
+              ) : (
+                <><Play className="h-3.5 w-3.5" /><span>Start Voyage Sim</span></>
+              )}
+            </button>
+            <button
+              onClick={() => { setCurrentVesselIndex(0); setIsPlayingTelemetry(false); }}
+              disabled={currentVesselIndex === 0}
+              className="flex items-center justify-center p-2 rounded-xl border border-slate-200 text-slate-500 hover:text-slate-700 hover:bg-slate-100 disabled:opacity-30 transition cursor-pointer"
+              title="Reset voyage to start"
+            >
+              <RotateCcw className="h-3.5 w-3.5" />
+            </button>
+          </div>
+        )}
+
         {errorMsg && (
           <p className="text-xs text-rose-600 font-medium text-center bg-rose-50 border border-rose-200 p-2.5 rounded-xl">
             Error: {errorMsg}
+          </p>
+        )}
+      </section>
+
+      {/* Section E: Emergency Response Protocol (Step 2 -> triggers Step 3 result panel) */}
+      <section className="space-y-3 pt-4 border-t border-slate-100">
+        <div className="flex items-center justify-between border-b border-slate-100 pb-2.5">
+          <div className="flex items-center space-x-2">
+            <TriangleAlert className="h-4 w-4 text-rose-600" />
+            <h2 className="text-xs font-bold tracking-wider text-slate-800 uppercase font-sans">Emergency Response</h2>
+          </div>
+          {emergencyType && (
+            <button
+              onClick={clearEmergency}
+              className="flex items-center space-x-1 text-[11px] font-semibold text-slate-400 hover:text-rose-600 transition"
+            >
+              <X className="h-3 w-3" />
+              <span>Clear</span>
+            </button>
+          )}
+        </div>
+
+        {!routes && (
+          <p className="text-[11px] text-slate-400 font-medium bg-slate-50 border border-slate-200 rounded-xl p-2.5">
+            Calculate optimal routes first, then declare an emergency to re-route from the vessel's live position.
+          </p>
+        )}
+
+        {routes && (
+          <div className="grid grid-cols-2 gap-2">
+            {emergencyTypes.map((et) => {
+              const Icon = EMERGENCY_ICONS[et.icon] || TriangleAlert;
+              const isActive = emergencyType === et.key;
+              return (
+                <button
+                  key={et.key}
+                  onClick={() => triggerEmergency(et.key)}
+                  disabled={emergencyLoading}
+                  className={`flex flex-col items-center justify-center space-y-1 text-center py-2.5 px-2 rounded-xl border text-[11px] font-semibold transition cursor-pointer disabled:opacity-50 ${
+                    isActive
+                      ? 'bg-rose-600 border-rose-600 text-white shadow-xs'
+                      : 'bg-rose-50/60 border-rose-200 text-rose-700 hover:bg-rose-100'
+                  }`}
+                >
+                  {emergencyLoading && isActive ? (
+                    <div className="animate-spin rounded-full h-3.5 w-3.5 border-t-2 border-current"></div>
+                  ) : (
+                    <Icon className="h-3.5 w-3.5" />
+                  )}
+                  <span className="leading-tight">{et.label}</span>
+                </button>
+              );
+            })}
+          </div>
+        )}
+
+        {emergencyError && (
+          <p className="text-xs text-rose-600 font-medium text-center bg-rose-50 border border-rose-200 p-2.5 rounded-xl">
+            Error: {emergencyError}
           </p>
         )}
       </section>

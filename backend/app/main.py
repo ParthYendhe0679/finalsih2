@@ -3,22 +3,95 @@ import numpy as np
 from fastapi import FastAPI, Depends, HTTPException, status
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
-from typing import List
+from typing import List, Dict, Any, Optional
 
 from .database import engine, Base, get_db
 # `models` is imported for its side effect of registering the ORM tables on
 # Base.metadata, which lifespan's create_all depends on.
 from . import models, schemas, crud  # noqa: F401
 from .raster_parser import env_grid
+from .grid import haversine_distance
 from .mopbd_engine import (
     calculate_pareto_routes, DSLite, PORTS,
     get_path_metrics, WEIGHT_PROFILES, RouteUnreachable,
 )
 
+# --- Emergency Rerouting Profiles ---
+# Each emergency biases the multi-objective weights toward what matters most
+# for that scenario, and (for hazard-type emergencies) marks a danger zone
+# around the ship's current position so the router actively routes around it,
+# rather than just re-weighting the same grid.
+EMERGENCY_PROFILES = {
+    "cyclone":    {"safety_weight": 0.70, "fuel_weight": 0.15, "time_weight": 0.15},
+    "piracy":     {"safety_weight": 0.80, "fuel_weight": 0.10, "time_weight": 0.10},
+    "medical":    {"safety_weight": 0.10, "fuel_weight": 0.10, "time_weight": 0.80},
+    "mechanical": {"safety_weight": 0.55, "fuel_weight": 0.15, "time_weight": 0.30},
+}
+
+EMERGENCY_META = {
+    "cyclone": {
+        "label": "Cyclone / Severe Weather",
+        "hazard_radius_km": 300.0,
+        "recommendation": "Routing prioritizes safety, steering clear of the storm cell forming around the vessel's position.",
+    },
+    "piracy": {
+        "label": "Piracy / Man-Made Threat",
+        "hazard_radius_km": 250.0,
+        "recommendation": "Routing maximizes safety margin and diverts away from the reported threat zone near the vessel.",
+    },
+    "medical": {
+        "label": "Medical Emergency (Crew Health)",
+        "hazard_radius_km": 0.0,
+        "recommendation": "Routing prioritizes speed to reach port fastest for medical evacuation; nearest port is flagged for diversion.",
+    },
+    "mechanical": {
+        "label": "Mechanical Failure / Engine Fault",
+        "hazard_radius_km": 0.0,
+        "recommendation": "Routing favors calmer, safer waters at moderate speed to reduce strain while the fault is contained.",
+    },
+}
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Ensure database schema and tables exist on startup
     Base.metadata.create_all(bind=engine)
+
+    # Seed default ships if the database is empty
+    db = next(get_db())
+    try:
+        if db.query(models.Ship).count() == 0:
+            default_ships = [
+                models.Ship(
+                    name="MV Bharat", imo="IMO9876543",
+                    displacement=55000.0, frontal_area=1200.0,
+                    engine_efficiency=0.45, sfoc=170.0,
+                    risk_index=15.0,
+                    maintenance_schedule="Next maintenance: 2026-12-15",
+                    parts_replacement_log="Filter replacement (2026-06-01)"
+                ),
+                models.Ship(
+                    name="Sagar Shakti", imo="IMO9812345",
+                    displacement=82000.0, frontal_area=1450.0,
+                    engine_efficiency=0.42, sfoc=175.0,
+                    risk_index=12.0,
+                    maintenance_schedule="Next maintenance: 2027-03-10",
+                    parts_replacement_log="Turbocharger overhaul (2026-08-01)"
+                ),
+                models.Ship(
+                    name="INS Vikrant", imo="IMO9900001",
+                    displacement=120000.0, frontal_area=1800.0,
+                    engine_efficiency=0.40, sfoc=185.0,
+                    risk_index=8.0,
+                    maintenance_schedule="Next maintenance: 2027-01-20",
+                    parts_replacement_log="Propeller inspection (2026-07-15)"
+                ),
+            ]
+            db.add_all(default_ships)
+            db.commit()
+            print(f"[Aegir] Seeded {len(default_ships)} default ship profiles into the database.")
+    finally:
+        db.close()
+
     yield
 
 app = FastAPI(title="Aegir Maritime OS Routing API", lifespan=lifespan)
@@ -172,16 +245,119 @@ def replan_routes(request: schemas.ReplanRequest, db: Session = Depends(get_db))
 
     return results
 
+@app.post("/api/routes/emergency")
+def emergency_reroute(request: schemas.EmergencyRequest, db: Session = Depends(get_db)):
+    """
+    Emergency-driven rerouting: given a live emergency category and the
+    vessel's current position, recompute the best onward route to the
+    destination under that emergency's priorities (and, for hazard-type
+    emergencies, a marked danger zone around the vessel).
+    """
+    if request.emergency_type not in EMERGENCY_PROFILES:
+        raise HTTPException(status_code=400, detail="Unknown emergency type")
+    if request.origin not in PORTS or request.destination not in PORTS:
+        raise HTTPException(status_code=400, detail="Unknown origin or destination port.")
+
+    db_ship = crud.get_ship(db, ship_id=request.ship_id)
+    if not db_ship:
+        raise HTTPException(status_code=404, detail="Ship not found")
+
+    ship_profile = {
+        "displacement": db_ship.displacement,
+        "frontal_area": db_ship.frontal_area,
+        "engine_efficiency": db_ship.engine_efficiency,
+        "sfoc": db_ship.sfoc
+    }
+
+    weights = EMERGENCY_PROFILES[request.emergency_type]
+    meta = EMERGENCY_META[request.emergency_type]
+    current_coord = (request.current_lat, request.current_lon)
+    goal_coord = PORTS[request.destination]
+
+    # Mark a danger zone at the vessel's position for hazard-type emergencies
+    # so the router actively diverts around it, not just re-weights the grid.
+    hazard_zone = None
+    if request.emergency_type == "cyclone":
+        radius_deg = meta["hazard_radius_km"] / 111.0
+        env_grid.inject_storm(
+            center_lat=request.current_lat, center_lon=request.current_lon,
+            radius_deg=radius_deg, severity=1.6
+        )
+        hazard_zone = {"lat": request.current_lat, "lon": request.current_lon, "radius_km": meta["hazard_radius_km"]}
+    elif request.emergency_type == "piracy":
+        radius_deg = meta["hazard_radius_km"] / 111.0
+        env_grid.inject_piracy_threat(
+            center_lat=request.current_lat, center_lon=request.current_lon,
+            radius_deg=radius_deg, severity=1.0
+        )
+        hazard_zone = {"lat": request.current_lat, "lon": request.current_lon, "radius_km": meta["hazard_radius_km"]}
+
+    try:
+        ds = DSLite(current_coord, goal_coord, ship_profile, weights)
+        ds.initialize()
+        ds.compute_shortest_path()
+        path = ds.get_path()
+    except RouteUnreachable as e:
+        raise HTTPException(status_code=422, detail=str(e))
+
+    metrics = get_path_metrics(path, ship_profile)
+
+    nearest_port_name, nearest_port_coord = min(
+        PORTS.items(),
+        key=lambda kv: haversine_distance(request.current_lat, request.current_lon, kv[1][0], kv[1][1])
+    )
+    nearest_port_distance_nm = round(
+        haversine_distance(request.current_lat, request.current_lon, nearest_port_coord[0], nearest_port_coord[1]), 1
+    )
+
+    return {
+        "emergency_type": request.emergency_type,
+        "label": meta["label"],
+        "recommendation": meta["recommendation"],
+        "weights": weights,
+        "hazard_zone": hazard_zone,
+        "nearest_port": {
+            "name": nearest_port_name,
+            "distance_nm": nearest_port_distance_nm
+        },
+        "current_position": {"lat": request.current_lat, "lon": request.current_lon},
+        **metrics
+    }
+
+from .environmental_service import env_service, OPEN_METEO_ATTRIBUTION, ENVIRONMENTAL_DISCLAIMER
+
+# --- Environmental Endpoints (Open-Meteo Integration) ---
+
+@app.get("/api/environment")
+def get_environment_telemetry(lat: Optional[float] = None, lon: Optional[float] = None, port: Optional[str] = None):
+    """
+    Returns live normalized Open-Meteo environmental telemetry for a vessel coordinate or named port.
+    Includes CC BY 4.0 attribution and prototype decision-support disclaimer.
+    """
+    target_lat = lat
+    target_lon = lon
+
+    if port and port in PORTS:
+        target_lat, target_lon = PORTS[port]
+    elif target_lat is None or target_lon is None:
+        # Default to JNPT / Central Arabian Sea
+        target_lat, target_lon = 18.95, 72.95
+
+    return env_service.get_point_environment(target_lat, target_lon)
+
+@app.post("/api/environment/sync")
+def sync_environment_with_open_meteo(stride: int = 20):
+    """
+    Triggers a live Open-Meteo weather and marine forecast sync across the Indian Ocean basin.
+    Updates the active EnvironmentalGrid and recalculates D* Lite cost matrices.
+    """
+    return env_service.sync_basin_grid(env_grid, stride=stride)
+
 @app.get("/api/weather/layers")
 def get_weather_layers(cell_deg: float = 1.0):
     """
-    Grid representation of wind speeds, wave heights and piracy risk for map
-    overlays.
-
-    The routing grid is 0.25 deg (200 x 280), which as raw JSON is several MB and
-    far finer than the overlay needs. Layers are block-reduced to ``cell_deg``
-    (1 deg by default) using the block maximum, so a hazard is never averaged
-    away. Land cells hold 0 and therefore never raise a block's maximum.
+    Grid representation of wind speeds, wave heights, ocean currents, piracy risk,
+    and coastal buffer for tactical map overlays.
     """
     stride = max(1, int(round(cell_deg / env_grid.cell_deg)))
 
@@ -192,9 +368,23 @@ def get_weather_layers(cell_deg: float = 1.0):
         blocks = trimmed.reshape(rows // stride, stride, cols // stride, stride)
         return np.round(blocks.max(axis=(1, 3)), 2).tolist()
 
+    def reduce_mean_layer(arr):
+        rows = arr.shape[0] // stride * stride
+        cols = arr.shape[1] // stride * stride
+        trimmed = arr[:rows, :cols]
+        blocks = trimmed.reshape(rows // stride, stride, cols // stride, stride)
+        return np.round(blocks.mean(axis=(1, 3)), 2).tolist()
+
     out_rows = env_grid.height // stride
     out_cols = env_grid.width // stride
     out_cell = env_grid.cell_deg * stride
+
+    # Current speed magnitude array
+    current_magnitude = np.sqrt(env_grid.currents_u ** 2 + env_grid.currents_v ** 2)
+
+    coastal_buffer_field = np.where(
+        env_grid.land, 0.0, np.clip(env_grid.STANDOFF_CELLS - env_grid.dist_to_land, 0.0, env_grid.STANDOFF_CELLS)
+    ).astype(np.float32)
 
     return {
         "bounds": {
@@ -208,5 +398,13 @@ def get_weather_layers(cell_deg: float = 1.0):
         },
         "winds": reduce_layer(env_grid.winds),
         "waves": reduce_layer(env_grid.waves),
-        "piracy": reduce_layer(env_grid.piracy)
+        "currents": reduce_layer(current_magnitude),
+        "currents_u": reduce_mean_layer(env_grid.currents_u),
+        "currents_v": reduce_mean_layer(env_grid.currents_v),
+        "piracy": reduce_layer(env_grid.piracy),
+        "coastal_buffer": reduce_layer(coastal_buffer_field),
+        "attribution": OPEN_METEO_ATTRIBUTION,
+        "disclaimer": ENVIRONMENTAL_DISCLAIMER,
+        "last_sync": env_service.last_sync_timestamp,
+        "data_source": env_service.last_sync_source
     }

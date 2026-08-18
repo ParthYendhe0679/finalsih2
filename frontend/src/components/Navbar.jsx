@@ -1,9 +1,9 @@
 import React from 'react';
 import { useApp } from '../context/AppContext';
-import { ShieldAlert, Search, Bell, Anchor, User, ArrowLeft } from 'lucide-react';
+import { ShieldAlert, Search, Bell, Anchor, User, ArrowLeft, TriangleAlert } from 'lucide-react';
 
 export default function Navbar({ onBackToLanding }) {
-  const { weatherShift } = useApp();
+  const { weatherShift, emergencyRoute } = useApp();
 
   return (
     <header className="border-b border-slate-200/80 bg-white sticky top-0 z-50 h-16 flex items-center justify-between px-6 select-none shadow-sm">
@@ -37,15 +37,20 @@ export default function Navbar({ onBackToLanding }) {
           />
           <div>
             <h1 className="text-base font-bold tracking-tight text-slate-900 flex items-center gap-2 font-sans group-hover:text-blue-600 transition">
-              Sagar Setu <span className="text-blue-600 font-semibold text-[10px] bg-blue-50 px-2.5 py-0.5 rounded-full border border-blue-200/60">MARITIME OS</span>
+              Sagar Setu
             </h1>
-            <p className="text-[10px] text-slate-400 font-medium tracking-tight -mt-0.5">STRATEGIC VOYAGE SCHEDULER & FLEET ANALYTICS</p>
+            <p className="text-[10px] text-slate-400 font-medium tracking-tight -mt-0.5">STRATEGIC VOYAGE SCHEDULER</p>
           </div>
         </div>
       </div>
 
-      {/* Weather Storm Alert Notification Banner */}
-      {weatherShift && (
+      {/* Emergency Reroute Alert Banner (takes priority over the routine storm sim banner) */}
+      {emergencyRoute ? (
+        <div className="hidden md:flex items-center space-x-2 bg-orange-50 border border-orange-200 text-orange-700 px-4 py-1.5 rounded-full text-xs animate-pulse font-medium shadow-xs">
+          <TriangleAlert className="h-4 w-4 text-orange-600" />
+          <span className="tracking-wide">Emergency Active: {emergencyRoute.label} &mdash; Optimal Route Recalculated</span>
+        </div>
+      ) : weatherShift && (
         <div className="hidden md:flex items-center space-x-2 bg-red-50 border border-red-200 text-red-700 px-4 py-1.5 rounded-full text-xs animate-pulse font-medium shadow-xs">
           <ShieldAlert className="h-4 w-4 text-red-600" />
           <span className="tracking-wide">Active Storm Alert: Dynamic D* Lite Replanning Active</span>

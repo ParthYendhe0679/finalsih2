@@ -104,10 +104,10 @@ class EnvironmentalGrid:
     # ----------------------------------------------------------- precompute
 
     # Routes should keep clearance off a coast rather than scraping along it.
-    # This is a soft risk penalty, not a hard block: a hard buffer would wall
-    # off every port, since ports are on the coast by definition.
-    STANDOFF_CELLS = 3.0
-    STANDOFF_PENALTY = 6.0
+    # Standoff threshold: 5 cells ~ 140 km (75 NM)
+    STANDOFF_CELLS = 5.0
+    STANDOFF_PENALTY = 25.0
+    MIN_CLEARANCE_KM = 35.0
 
     def _precompute(self):
         self._precompute_static()
@@ -118,6 +118,8 @@ class EnvironmentalGrid:
         from .generator import coast_distance
 
         self.dist_to_land = coast_distance(self.land)
+        # km conversion: 0.25 deg latitude ~ 27.78 km per cell
+        self.dist_to_land_km = (self.dist_to_land * (self.cell_deg * 111.12)).astype(np.float32)
         # Navigable == water. Kept as its own array so callers never have to
         # remember the polarity of `land`.
         self.navigable = ~self.land
@@ -127,6 +129,8 @@ class EnvironmentalGrid:
         # order of magnitude slower than native list access, which matters when
         # the search touches hundreds of thousands of cells.
         self.land_l = self.land.tolist()
+        self.dist_to_land_l = self.dist_to_land.tolist()
+        self.dist_to_land_km_l = self.dist_to_land_km.tolist()
 
     def _precompute_derived(self):
         """
@@ -136,13 +140,18 @@ class EnvironmentalGrid:
         affordable: each edge evaluation becomes a few array lookups instead of
         recomputing powers and a metrics dict.
         """
-        self.speed_loss = (0.04 * self.winds + 0.6 * self.waves).astype(np.float32)
+        # Shallow water / coastal speed loss: maneuvering speed restrictions
+        # and shallow water squat drag apply in near-shore waters (dist < 2.5 cells).
+        coastal_speed_loss = np.clip(2.5 - self.dist_to_land, 0.0, 2.5) * 1.2
+        self.speed_loss = (0.04 * self.winds + 0.6 * self.waves + coastal_speed_loss).astype(np.float32)
         self.wind_sq = np.maximum(0.0, self.winds) ** 2
         self.wave_sq = self.waves ** 2
 
-        standoff = self.STANDOFF_PENALTY * np.clip(
-            1.0 - self.dist_to_land / self.STANDOFF_CELLS, 0.0, 1.0
-        )
+        # Coastal clearance standoff risk penalty (decays smoothly with distance from coast)
+        standoff = (self.STANDOFF_PENALTY * np.power(
+            np.clip(1.0 - self.dist_to_land / self.STANDOFF_CELLS, 0.0, 1.0), 1.5
+        )).astype(np.float32)
+
         # Risk density per nautical mile. Minimum is 1.0, which the routing
         # heuristic relies on as its admissible lower bound.
         self.risk_cell = (
@@ -154,11 +163,7 @@ class EnvironmentalGrid:
         ).astype(np.float32)
 
         # Global extrema over navigable water. The search heuristic uses these as
-        # its admissible lower bounds. Deriving them from the data instead of
-        # hardcoding optimistic constants is what keeps the heuristic both
-        # admissible and informative: the true risk floor here is ~3.1 per NM, so
-        # assuming 1.0 would understate remaining cost threefold and collapse the
-        # search into a near-exhaustive sweep of the basin.
+        # its admissible lower bounds.
         ocean = self.ocean
         self.risk_min = float(self.risk_cell[ocean].min())
         self.speed_loss_min = float(self.speed_loss[ocean].min())
@@ -173,6 +178,7 @@ class EnvironmentalGrid:
         self.wave_sq_l = self.wave_sq.tolist()
         self.currents_u_l = self.currents_u.tolist()
         self.currents_v_l = self.currents_v.tolist()
+        self.standoff_l = standoff.tolist()
 
     def _largest_water_component(self) -> np.ndarray:
         """
@@ -234,6 +240,28 @@ class EnvironmentalGrid:
             return False
         return not bool(self.land[row, col])
 
+    def get_distance_to_land(self, row: int, col: int) -> float:
+        """Distance in grid cells to the nearest land cell (0.0 if land)."""
+        if not grid.in_bounds(row, col):
+            return 0.0
+        return float(self.dist_to_land_l[row][col])
+
+    def get_distance_to_land_km(self, row: int, col: int) -> float:
+        """Distance in kilometers to the nearest land cell (0.0 if land)."""
+        if not grid.in_bounds(row, col):
+            return 0.0
+        return float(self.dist_to_land_km_l[row][col])
+
+    def get_distance_to_land_nm(self, row: int, col: int) -> float:
+        """Distance in nautical miles to the nearest land cell (0.0 if land)."""
+        return self.get_distance_to_land_km(row, col) / 1.852
+
+    def is_in_coastal_buffer(self, row: int, col: int, min_km: float = 35.0) -> bool:
+        """True if the water cell is within the coastal safety buffer."""
+        if not grid.in_bounds(row, col) or self.land_l[row][col]:
+            return True
+        return self.dist_to_land_km_l[row][col] < min_km
+
     def get_metrics(self, lat, lon):
         row, col = grid.coord_to_grid(lat, lon)
         return {
@@ -244,6 +272,7 @@ class EnvironmentalGrid:
             "piracy": float(self.piracy[row, col]),
             "land": bool(self.land[row, col]),
             "dist_to_land": float(self.dist_to_land[row, col]),
+            "dist_to_land_km": float(self.dist_to_land_km[row, col]),
         }
 
     def nearest_navigable(self, lat: float, lon: float, max_radius: int = 40):
@@ -304,6 +333,30 @@ class EnvironmentalGrid:
 
         # Refresh the cost-function lookup tables so the router sees the storm.
         # Only the weather-derived arrays change; the land geometry does not.
+        self._precompute_derived()
+
+        rows, cols = np.nonzero(inside)
+        return [(int(r), int(c)) for r, c in zip(rows, cols)]
+
+    def inject_piracy_threat(self, center_lat, center_lon, radius_deg, severity=1.0):
+        """
+        Raise the piracy risk field around a reported threat position, so a
+        man-made emergency (hijacking attempt, hostile vessel sighting) steers
+        the router away from that zone the same way inject_storm() does for
+        weather. Returns the list of changed cells for incremental D* Lite
+        repair.
+        """
+        lats, lons = grid.cell_centres()
+        distance = np.sqrt((lats - center_lat) ** 2 + (lons - center_lon) ** 2)
+        inside = (distance <= radius_deg) & self.navigable
+        if not inside.any():
+            return []
+
+        factor = np.zeros_like(distance, dtype=np.float32)
+        factor[inside] = ((radius_deg - distance[inside]) / radius_deg).astype(np.float32)
+
+        self.piracy = np.clip(self.piracy + 0.9 * factor * severity, 0.0, 1.0).astype(np.float32)
+
         self._precompute_derived()
 
         rows, cols = np.nonzero(inside)

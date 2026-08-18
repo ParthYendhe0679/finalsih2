@@ -4,6 +4,7 @@ import Navbar from './components/Navbar';
 import Sidebar from './components/Sidebar';
 import MapComponent from './components/MapComponent';
 import ParetoDock from './components/ParetoDock';
+import EmergencyDock from './components/EmergencyDock';
 import FleetRegistry from './components/FleetRegistry';
 import VoyageAnalytics from './components/VoyageAnalytics';
 import LandingPage from './landing/LandingPage';
@@ -71,6 +72,9 @@ function DashboardContent({ onBackToLanding }) {
 
           {/* Persistent Bottom Pareto Dock */}
           <ParetoDock />
+
+          {/* Emergency Optimal Route Result (Step 3) */}
+          <EmergencyDock />
         </div>
       )}
 

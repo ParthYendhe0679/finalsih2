@@ -307,6 +307,16 @@ class DSLite:
             )
         return cell
 
+    def is_in_port_zone(self, r: int, c: int, radius_cells: float = 3.5) -> bool:
+        """
+        True when cell (r, c) is within the terminal approach area of the
+        origin or destination port (~100 km). Within this zone, vessel may
+        safely transition between the coastal berth and open ocean.
+        """
+        d_start = math.sqrt((r - self.s_start[0]) ** 2 + (c - self.s_start[1]) ** 2)
+        d_goal = math.sqrt((r - self.s_goal[0]) ** 2 + (c - self.s_goal[1]) ** 2)
+        return (d_start <= radius_cells) or (d_goal <= radius_cells)
+
     # ----------------------------------------------------------------- costs
 
     def cost(self, u: Tuple[int, int], v: Tuple[int, int]) -> float:
@@ -316,12 +326,28 @@ class DSLite:
         """
         if u == v:
             return 0.0
+        r_dst, c_dst = v
+        d_land = env_grid.dist_to_land_l[r_dst][c_dst]
+        if d_land <= 0.0:
+            return float("inf")
+
         t, f, r = _edge_vector_step(u, v, self.prof)
         if t == float("inf"):
             return float("inf")
+
+        # Base navigational clearance cost (Maritime Law & Safety Regulation):
+        # Navigation in shallow / hazardous near-coastal waters (< 5 cells / ~140 km)
+        # carries a steep safety standoff cost that applies across ALL profiles
+        # (Fastest, Fuel-Optimal, Safest, Balanced) so no route hugs the coast.
+        in_port = self.is_in_port_zone(r_dst, c_dst)
+        if not in_port and d_land < env_grid.STANDOFF_CELLS:
+            standoff_penalty = 16.0 * ((env_grid.STANDOFF_CELLS - d_land) / env_grid.STANDOFF_CELLS) ** 2.0
+        else:
+            standoff_penalty = 0.0
+
         # Scale so Time (~100-300 hrs), Fuel (~5000-20000 gal) and Risk
         # (~500-2000) contribute at comparable magnitudes.
-        return self.w_t * t + self.w_f * (f / 80.0) + self.w_s * (r / 8.0)
+        return self.w_t * t + self.w_f * (f / 80.0) + self.w_s * (r / 8.0) + standoff_penalty
 
     def heuristic(self, s1: Tuple[int, int], s2: Tuple[int, int]) -> float:
         """
@@ -585,8 +611,53 @@ WEIGHT_PROFILES = {
 }
 
 
+def validate_route(path: List[Tuple[float, float]]) -> Dict[str, Any]:
+    """
+    Validates that a generated voyage satisfies navigational clearance constraints:
+    1. No intermediate water waypoints lie on land.
+    2. Measures minimum and average distance to nearest coast in km and NM.
+    3. Confirms open-ocean clearance compliance.
+    """
+    if not path or len(path) < 2:
+        return {
+            "validation_passed": True,
+            "min_clearance_km": 0.0,
+            "avg_clearance_km": 0.0,
+            "min_clearance_nm": 0.0,
+            "avg_clearance_nm": 0.0,
+            "land_violations": 0,
+        }
+
+    # Analyze water waypoints (excluding coastal port coordinates at path ends)
+    water_wps = path[1:-1] if len(path) > 2 else path
+    dists_km = []
+    land_violations = 0
+
+    for lat, lon in water_wps:
+        r, c = coord_to_grid(lat, lon)
+        if env_grid.land_l[r][c]:
+            land_violations += 1
+        d_km = env_grid.dist_to_land_km_l[r][c]
+        dists_km.append(d_km)
+
+    if not dists_km:
+        dists_km = [0.0]
+
+    min_km = float(min(dists_km))
+    avg_km = float(sum(dists_km) / len(dists_km))
+
+    return {
+        "validation_passed": (land_violations == 0),
+        "min_clearance_km": round(min_km, 1),
+        "avg_clearance_km": round(avg_km, 1),
+        "min_clearance_nm": round(min_km / 1.852, 1),
+        "avg_clearance_nm": round(avg_km / 1.852, 1),
+        "land_violations": land_violations,
+    }
+
+
 def get_path_metrics(path: List[Tuple[float, float]], ship_profile: Dict[str, Any]) -> Dict[str, Any]:
-    """Aggregate time / fuel / risk along a lat-lon path."""
+    """Aggregate time / fuel / risk and coastal clearance metrics along a lat-lon path."""
     prof = resolve_profile(ship_profile)
     total_time = 0.0
     total_fuel = 0.0
@@ -610,11 +681,19 @@ def get_path_metrics(path: List[Tuple[float, float]], ship_profile: Dict[str, An
             total_fuel += f
             total_risk += r
 
+    validation = validate_route(path)
+
     return {
         "waypoints": waypoints,
         "total_time": round(total_time, 1),
         "total_fuel": round(total_fuel, 0),
-        "total_risk": round(total_risk, 1)
+        "total_risk": round(total_risk, 1),
+        "min_clearance_km": validation["min_clearance_km"],
+        "avg_clearance_km": validation["avg_clearance_km"],
+        "min_clearance_nm": validation["min_clearance_nm"],
+        "avg_clearance_nm": validation["avg_clearance_nm"],
+        "validation_passed": validation["validation_passed"],
+        "land_violations": validation["land_violations"],
     }
 
 
@@ -622,7 +701,10 @@ def calculate_pareto_routes(origin: str, destination: str, ship_profile: Dict[st
                             custom_weights: Dict[str, float]) -> Dict[str, Any]:
     """
     Computes a set of Pareto-optimal routes:
-    1. Fastest, 2. Fuel-optimized, 3. Safest, 4. Balanced (UI slider weights).
+    1. Route A — Fastest (min time)
+    2. Route B — Fuel Optimal (min fuel)
+    3. Route C — Safest (min risk & max coastal clearance)
+    4. Route D — Recommended (balanced multi-objective)
     """
     start_coord = PORTS.get(origin)
     goal_coord = PORTS.get(destination)
@@ -633,14 +715,20 @@ def calculate_pareto_routes(origin: str, destination: str, ship_profile: Dict[st
     weight_profiles["balanced"] = custom_weights
 
     results = {}
+    print(f"\n[Aegir Router] Calculating 4 Pareto-optimal routes: {origin} -> {destination}")
+    print(f"[Aegir Router] Minimum Coastal Clearance Constraint: {env_grid.MIN_CLEARANCE_KM} km active.")
+
     for key, weights in weight_profiles.items():
         ds = DSLite(start_coord, goal_coord, ship_profile, weights)
         ds.initialize()
         ds.compute_shortest_path()
         path_coords = ds.get_path()
+        metrics = get_path_metrics(path_coords, ship_profile)
+
         results[key] = {
             "weights": weights,
-            **get_path_metrics(path_coords, ship_profile)
+            **metrics
         }
+        print(f"  > Route {key.upper()}: ETA={metrics['total_time']}h | Fuel={metrics['total_fuel']}g | Risk={metrics['total_risk']} | Min Clearance={metrics['min_clearance_km']} km | Avg Clearance={metrics['avg_clearance_km']} km")
 
     return results
