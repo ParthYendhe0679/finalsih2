@@ -130,13 +130,72 @@ export default function Sidebar() {
               className="w-full bg-slate-50 text-xs font-medium text-slate-800 border border-slate-200 rounded-xl px-3 py-2 focus:border-blue-500 focus:bg-white outline-none cursor-pointer shadow-2xs"
             >
               {ships.map((ship) => (
-                <option key={ship.id} value={ship.id.toString()}>{ship.name} ({ship.imo})</option>
+                <option key={ship.id} value={ship.id.toString()}>
+                  {ship.name} — {ship.vessel_type ? ship.vessel_type.split(' ')[0] : 'Carrier'} ({ship.imo})
+                </option>
               ))}
             </select>
           </div>
 
+          {selectedShip && (
+            <div className="bg-slate-50 border border-slate-200/80 rounded-xl p-2.5 text-[11px] text-slate-600 space-y-1">
+              <div className="flex items-center justify-between font-semibold text-slate-800">
+                <span className="truncate pr-2">{selectedShip.vessel_type || 'Commercial Carrier'}</span>
+                <span className="text-[10px] bg-blue-50 text-blue-700 px-1.5 py-0.5 rounded font-mono font-bold shrink-0">
+                  {selectedShip.displacement?.toLocaleString()} MT
+                </span>
+              </div>
+              <div className="flex items-center justify-between text-[10px] text-slate-500 font-mono pt-0.5 border-t border-slate-200/60">
+                <span>LOA: {selectedShip.length ?? 300}m</span>
+                <span>Beam: {selectedShip.beam ?? 45}m</span>
+                <span>Draft: {selectedShip.draft ?? 14}m</span>
+                <span>DWT: {(selectedShip.dwt ?? 80000).toLocaleString()} MT</span>
+              </div>
+            </div>
+          )}
+
           {selectedShip && showOverride && (
             <div className="bg-slate-50 border border-slate-200 rounded-xl p-3 space-y-2.5 text-xs font-mono">
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="block text-[9px] text-slate-500 uppercase font-bold">Length (LOA m)</label>
+                  <input
+                    type="number"
+                    value={selectedShip.length ?? 300}
+                    onChange={(e) => handleOverrideChange('length', e.target.value)}
+                    className="w-full bg-white border border-slate-200 rounded-lg px-2 py-1 text-slate-800 outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[9px] text-slate-500 uppercase font-bold">Beam / Width (m)</label>
+                  <input
+                    type="number"
+                    value={selectedShip.beam ?? 45}
+                    onChange={(e) => handleOverrideChange('beam', e.target.value)}
+                    className="w-full bg-white border border-slate-200 rounded-lg px-2 py-1 text-slate-800 outline-none"
+                  />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="block text-[9px] text-slate-500 uppercase font-bold">Draft (m)</label>
+                  <input
+                    type="number"
+                    value={selectedShip.draft ?? 14}
+                    onChange={(e) => handleOverrideChange('draft', e.target.value)}
+                    className="w-full bg-white border border-slate-200 rounded-lg px-2 py-1 text-slate-800 outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[9px] text-slate-500 uppercase font-bold">Deadweight (DWT MT)</label>
+                  <input
+                    type="number"
+                    value={selectedShip.dwt ?? 80000}
+                    onChange={(e) => handleOverrideChange('dwt', e.target.value)}
+                    className="w-full bg-white border border-slate-200 rounded-lg px-2 py-1 text-slate-800 outline-none"
+                  />
+                </div>
+              </div>
               <div className="grid grid-cols-2 gap-2">
                 <div>
                   <label className="block text-[9px] text-slate-500 uppercase font-bold">Displacement (tons)</label>

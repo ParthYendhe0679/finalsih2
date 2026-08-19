@@ -75,6 +75,72 @@ def build_land_mask(lats: np.ndarray, lons: np.ndarray) -> np.ndarray:
     return np.asarray(mask, dtype=bool)
 
 
+# Straits that carry real deep-water shipping but are narrower than the mask can
+# resolve. global_land_mask samples one point per 0.25 deg cell (~28 km), so a
+# lane like the Singapore Strait falls between sample points and the mask closes
+# it -- which sent JNPT -> Singapore the long way round Sumatra, 1963 NM instead
+# of roughly 650.
+#
+# Each entry is a mid-channel centreline; water is forced within half_width_deg
+# of it. This corrects for raster resolution, not for geography: a strait only
+# belongs here if real traffic transits it. The Palk Strait is deliberately
+# absent -- Adam's Bridge is shoal and large vessels genuinely must round Sri
+# Lanka, so the mask being open there is a separate question, not a resolution
+# artefact this list should paper over.
+NAVIGABLE_CHANNELS = [
+    {
+        "name": "Malacca and Singapore Straits",
+        "half_width_deg": 0.28,
+        "centreline": [
+            (6.20, 95.20),   # Andaman Sea, north of the Sumatra tip
+            (5.40, 97.20),   # north-western entrance
+            (4.60, 98.60),
+            (3.80, 99.80),
+            (3.00, 100.80),
+            (2.30, 101.70),
+            (1.60, 102.70),
+            (1.25, 103.40),  # Singapore roads
+            (1.15, 104.20),  # eastern exit to the South China Sea
+        ],
+    },
+]
+
+
+def carve_channels(land: np.ndarray, lats: np.ndarray, lons: np.ndarray) -> np.ndarray:
+    """
+    Force the shipping lanes in NAVIGABLE_CHANNELS to water.
+
+    Distance is measured to each centreline *segment*, not to its vertices, so a
+    channel stays continuous however coarsely the centreline is sampled.
+    Degrees are treated as a flat metric here, which is accurate enough at these
+    latitudes for a lane whose width is being chosen to the nearest cell anyway.
+    """
+    out = land.copy()
+    opened = 0
+
+    for channel in NAVIGABLE_CHANNELS:
+        half = channel["half_width_deg"]
+        pts = channel["centreline"]
+        for (lat1, lon1), (lat2, lon2) in zip(pts, pts[1:]):
+            dlat = lat2 - lat1
+            dlon = lon2 - lon1
+            seg_sq = dlat * dlat + dlon * dlon
+            if seg_sq <= 0:
+                continue
+            # Projection of every cell centre onto the segment, clamped to it.
+            t = ((lats - lat1) * dlat + (lons - lon1) * dlon) / seg_sq
+            t = np.clip(t, 0.0, 1.0)
+            d = np.hypot(lats - (lat1 + t * dlat), lons - (lon1 + t * dlon))
+            inside = d <= half
+            opened += int(np.count_nonzero(inside & out))
+            out[inside] = False
+
+    if opened:
+        names = ", ".join(c["name"] for c in NAVIGABLE_CHANNELS)
+        print(f"Opened {opened} cells for charted shipping lanes ({names}).")
+    return out
+
+
 def coast_distance(land: np.ndarray, max_cells: int = 40) -> np.ndarray:
     """
     Distance (in cells) from each water cell to the nearest land cell,
@@ -111,6 +177,7 @@ def generate_rasters():
 
     # --- Land / navigability mask -------------------------------------------
     land = build_land_mask(lats, lons)
+    land = carve_channels(land, lats, lons)
     dist_to_land = coast_distance(land)
 
     # --- Wind speed (knots) -------------------------------------------------
@@ -223,42 +290,89 @@ def seed_database():
         if db.query(Ship).count() == 0:
             ships = [
                 Ship(
-                    name="Aegir Container",
-                    imo="IMO9123456",
-                    displacement=55000.0,
-                    frontal_area=1200.0,
-                    engine_efficiency=0.45,
-                    sfoc=165.0,
+                    name="MV Ever Given",
+                    imo="IMO9811000",
+                    vessel_type="Ultra Large Container Vessel (20,124 TEU)",
+                    length=399.9,
+                    beam=58.8,
+                    draft=14.5,
+                    dwt=199692.0,
+                    displacement=219000.0,
+                    frontal_area=2200.0,
+                    engine_efficiency=0.48,
+                    sfoc=162.0,
+                    risk_index=10.0,
+                    maintenance_schedule="Next special drydock: 2027-04-15",
+                    parts_replacement_log="Main engine ME-GI cylinder liner & fuel injector overhaul (2026-05-10)"
+                ),
+                Ship(
+                    name="Berge Olympus",
+                    imo="IMO9750957",
+                    vessel_type="Newcastlemax Bulk Carrier (Iron Ore / Coal)",
+                    length=300.0,
+                    beam=50.0,
+                    draft=18.5,
+                    dwt=211112.0,
+                    displacement=245000.0,
+                    frontal_area=1550.0,
+                    engine_efficiency=0.44,
+                    sfoc=168.0,
                     risk_index=12.0,
-                    maintenance_schedule="Routine inspection: 2026-10-10",
-                    parts_replacement_log="Alternator replaced (2026-05-15)"
+                    maintenance_schedule="Intermediate hull thickness gauging: 2026-11-20",
+                    parts_replacement_log="WindWings automated sail tensioners & aux generator overhaul (2026-06-18)"
                 ),
                 Ship(
-                    name="Aegir Tanker",
-                    imo="IMO9234567",
-                    displacement=110000.0,
+                    name="Desh Shanti",
+                    imo="IMO9272890",
+                    vessel_type="Very Large Crude Carrier (VLCC Oil Tanker)",
+                    length=333.0,
+                    beam=60.0,
+                    draft=21.5,
+                    dwt=308000.0,
+                    displacement=350000.0,
+                    frontal_area=1850.0,
+                    engine_efficiency=0.41,
+                    sfoc=174.0,
+                    risk_index=14.0,
+                    maintenance_schedule="Drydock survey & inert gas system recertification: 2027-02-10",
+                    parts_replacement_log="Cargo oil pump mechanical seals & turbocharger rotor servicing (2026-07-04)"
+                ),
+                Ship(
+                    name="SCI Chennai",
+                    imo="IMO9488346",
+                    vessel_type="Panamax Geared Container Carrier (4,250 TEU)",
+                    length=260.0,
+                    beam=32.2,
+                    draft=12.5,
+                    dwt=52500.0,
+                    displacement=62000.0,
+                    frontal_area=1250.0,
+                    engine_efficiency=0.46,
+                    sfoc=166.0,
+                    risk_index=8.0,
+                    maintenance_schedule="Annual safety radio & ECDIS / gyro compass calibration: 2026-10-05",
+                    parts_replacement_log="Bow thruster hydraulic seals & bilge separator filters renewed (2026-08-02)"
+                ),
+                Ship(
+                    name="BW Pavilion Leeara",
+                    imo="IMO9640645",
+                    vessel_type="Tri-Fuel Diesel Electric LNG Carrier (161,870 m³)",
+                    length=288.0,
+                    beam=44.2,
+                    draft=11.8,
+                    dwt=84500.0,
+                    displacement=122000.0,
                     frontal_area=1600.0,
-                    engine_efficiency=0.40,
-                    sfoc=178.0,
-                    risk_index=22.0,
-                    maintenance_schedule="Drydock overhaul: 2026-12-05",
-                    parts_replacement_log="Propeller polishing (2026-02-10)"
-                ),
-                Ship(
-                    name="Aegir Carrier",
-                    imo="IMO9345678",
-                    displacement=75000.0,
-                    frontal_area=1400.0,
-                    engine_efficiency=0.42,
-                    sfoc=170.0,
-                    risk_index=15.0,
-                    maintenance_schedule="Hull cleaning: 2026-11-20",
-                    parts_replacement_log="Water pump replaced (2026-07-02)"
+                    engine_efficiency=0.47,
+                    sfoc=164.0,
+                    risk_index=9.0,
+                    maintenance_schedule="Cryogenic membrane containment & reliquefaction plant audit: 2027-01-18",
+                    parts_replacement_log="Boil-off gas (BOG) compressor valves & dual-fuel actuators overhauled (2026-04-22)"
                 )
             ]
             db.add_all(ships)
             db.commit()
-            print("Database seeded with default ships.")
+            print("Database seeded with real commercial carrier ships.")
         else:
             print("Database already has ships. Seeding skipped.")
     finally:

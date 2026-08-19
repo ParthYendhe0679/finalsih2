@@ -28,12 +28,17 @@ export function generateVoyageDossierMarkdown(routeKey, routeData, ship, origin,
   const rationale = routeRationales[routeKey] || 'Multi-objective optimal route.';
   const waypoints = routeData.waypoints || [];
 
-  const vesselName = ship?.name || 'MV Bharat';
-  const imo = ship?.imo || 'IMO9876543';
-  const disp = ship?.displacement || 55000;
-  const frontalArea = ship?.frontal_area || 1200;
-  const sfoc = ship?.sfoc || 170;
-  const efficiency = ship?.engine_efficiency ? (ship.engine_efficiency * 100).toFixed(0) : '45';
+  const vesselName = ship?.name || 'MV Ever Given';
+  const imo = ship?.imo || 'IMO9811000';
+  const vesselType = ship?.vessel_type || 'Ultra Large Container Vessel (20,124 TEU)';
+  const length = ship?.length ?? 399.9;
+  const beam = ship?.beam ?? 58.8;
+  const draft = ship?.draft ?? 14.5;
+  const dwt = ship?.dwt ?? 199692;
+  const disp = ship?.displacement || 219000;
+  const frontalArea = ship?.frontal_area || 2200;
+  const sfoc = ship?.sfoc || 162;
+  const efficiency = ship?.engine_efficiency ? (ship.engine_efficiency * 100).toFixed(0) : '48';
 
   let report = '';
   report += `========================================================================================\n`;
@@ -49,7 +54,12 @@ export function generateVoyageDossierMarkdown(routeKey, routeData, ship, origin,
   report += `  Arrival Port:          ${destination}\n`;
   report += `  Vessel Name:           ${vesselName}\n`;
   report += `  IMO Number:            ${imo}\n`;
-  report += `  Displacement:          ${disp.toLocaleString()} Metric Tons\n`;
+  report += `  Vessel Class / Type:   ${vesselType}\n`;
+  report += `  Length Overall (LOA):  ${length} Meters\n`;
+  report += `  Beam (Moulded Width):  ${beam} Meters\n`;
+  report += `  Maximum Scantling Draft:${draft} Meters\n`;
+  report += `  Deadweight (DWT):      ${dwt.toLocaleString()} Metric Tons\n`;
+  report += `  Design Displacement:   ${disp.toLocaleString()} Metric Tons\n`;
   report += `  Frontal Wind Area:     ${frontalArea} m²\n`;
   report += `  Engine Efficiency:     ${efficiency}%\n`;
   report += `  SFOC Rating:           ${sfoc} g/kWh\n\n`;

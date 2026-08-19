@@ -2,13 +2,18 @@ from pydantic import BaseModel, ConfigDict, Field
 from typing import Optional, List
 
 class ShipBase(BaseModel):
-    name: str = Field(..., json_schema_extra={"example": "Aegir Pride"})
-    imo: str = Field(..., json_schema_extra={"example": "IMO9876543"})
-    displacement: float = Field(..., json_schema_extra={"example": 55000.0})
-    frontal_area: float = Field(..., json_schema_extra={"example": 1200.0})
-    engine_efficiency: float = Field(..., json_schema_extra={"example": 0.45})
-    sfoc: float = Field(..., json_schema_extra={"example": 170.0})
-    risk_index: Optional[float] = 15.0
+    name: str = Field(..., json_schema_extra={"example": "MV Ever Given"})
+    imo: str = Field(..., json_schema_extra={"example": "IMO9811000"})
+    vessel_type: Optional[str] = Field("Container Carrier", json_schema_extra={"example": "Ultra Large Container Vessel (20,124 TEU)"})
+    length: Optional[float] = Field(399.9, json_schema_extra={"example": 399.9})
+    beam: Optional[float] = Field(58.8, json_schema_extra={"example": 58.8})
+    draft: Optional[float] = Field(14.5, json_schema_extra={"example": 14.5})
+    dwt: Optional[float] = Field(199692.0, json_schema_extra={"example": 199692.0})
+    displacement: float = Field(..., json_schema_extra={"example": 219000.0})
+    frontal_area: float = Field(..., json_schema_extra={"example": 2200.0})
+    engine_efficiency: float = Field(..., json_schema_extra={"example": 0.48})
+    sfoc: float = Field(..., json_schema_extra={"example": 162.0})
+    risk_index: Optional[float] = 10.0
     maintenance_schedule: Optional[str] = "Next maintenance: 2026-12-15"
     parts_replacement_log: Optional[str] = "Filter replacement (2026-06-01)"
 
@@ -18,6 +23,11 @@ class ShipCreate(ShipBase):
 class ShipUpdate(BaseModel):
     name: Optional[str] = None
     imo: Optional[str] = None
+    vessel_type: Optional[str] = None
+    length: Optional[float] = None
+    beam: Optional[float] = None
+    draft: Optional[float] = None
+    dwt: Optional[float] = None
     displacement: Optional[float] = None
     frontal_area: Optional[float] = None
     engine_efficiency: Optional[float] = None

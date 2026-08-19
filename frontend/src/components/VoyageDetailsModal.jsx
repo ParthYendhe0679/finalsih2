@@ -116,7 +116,7 @@ export default function VoyageDetailsModal({ isOpen, onClose }) {
                 )}
               </div>
               <p className="text-xs text-slate-500 font-medium">
-                {origin} &rarr; {destination} · {selectedShip?.name || 'MV Bharat'} ({selectedShip?.displacement?.toLocaleString()} MT)
+                {origin} &rarr; {destination} · <span className="font-bold text-slate-700">{selectedShip?.name || 'MV Ever Given'}</span> ({selectedShip?.vessel_type || 'Container Carrier'} · LOA: {selectedShip?.length ?? 399.9}m · {selectedShip?.displacement?.toLocaleString()} MT)
               </p>
             </div>
           </div>

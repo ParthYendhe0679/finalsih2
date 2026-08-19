@@ -14,13 +14,18 @@ def create_ship(db: Session, ship: schemas.ShipCreate):
     db_ship = models.Ship(
         name=ship.name,
         imo=ship.imo,
+        vessel_type=ship.vessel_type or "Container Carrier",
+        length=ship.length if ship.length is not None else 300.0,
+        beam=ship.beam if ship.beam is not None else 45.0,
+        draft=ship.draft if ship.draft is not None else 14.0,
+        dwt=ship.dwt if ship.dwt is not None else 80000.0,
         displacement=ship.displacement,
         frontal_area=ship.frontal_area,
         engine_efficiency=ship.engine_efficiency,
         sfoc=ship.sfoc,
-        risk_index=ship.risk_index,
-        maintenance_schedule=ship.maintenance_schedule,
-        parts_replacement_log=ship.parts_replacement_log
+        risk_index=ship.risk_index if ship.risk_index is not None else 15.0,
+        maintenance_schedule=ship.maintenance_schedule or "Next maintenance: 2026-12-15",
+        parts_replacement_log=ship.parts_replacement_log or "Filter replacement (2026-06-01)"
     )
     db.add(db_ship)
     db.commit()

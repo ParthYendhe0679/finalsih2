@@ -7,7 +7,12 @@ class Ship(Base):
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String, index=True, nullable=False)
     imo = Column(String, unique=True, index=True, nullable=False)
-    displacement = Column(Float, nullable=False)  # in Metric Tons
+    vessel_type = Column(String, default="Container Carrier")  # e.g. Container Carrier, Bulk Carrier, Crude Oil Tanker, LNG Carrier
+    length = Column(Float, default=300.0)  # Length Overall (LOA) in meters
+    beam = Column(Float, default=45.0)  # Beam / Width in meters
+    draft = Column(Float, default=14.0)  # Max Draft in meters
+    dwt = Column(Float, default=80000.0)  # Deadweight Tonnage (DWT) in Metric Tons
+    displacement = Column(Float, nullable=False)  # Displacement in Metric Tons
     frontal_area = Column(Float, nullable=False)  # in m^2
     engine_efficiency = Column(Float, nullable=False)  # e.g., 0.45 (45%)
     sfoc = Column(Float, nullable=False)  # Specific Fuel Oil Consumption in g/kWh

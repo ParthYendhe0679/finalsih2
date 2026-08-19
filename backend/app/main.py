@@ -51,44 +51,132 @@ EMERGENCY_META = {
     },
 }
 
+from sqlalchemy import text
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Ensure database schema and tables exist on startup
     Base.metadata.create_all(bind=engine)
 
-    # Seed default ships if the database is empty
+    # Safe SQLite column migration for existing tables
+    with engine.connect() as conn:
+        for col_name, col_type in [
+            ("vessel_type", "VARCHAR DEFAULT 'Container Carrier'"),
+            ("length", "FLOAT DEFAULT 300.0"),
+            ("beam", "FLOAT DEFAULT 45.0"),
+            ("draft", "FLOAT DEFAULT 14.0"),
+            ("dwt", "FLOAT DEFAULT 80000.0"),
+        ]:
+            try:
+                conn.execute(text(f"ALTER TABLE ships ADD COLUMN {col_name} {col_type}"))
+                conn.commit()
+            except Exception:
+                pass
+
+    # Real-world commercial carrier ship fleet specifications
+    real_carrier_fleet = [
+        models.Ship(
+            name="MV Ever Given",
+            imo="IMO9811000",
+            vessel_type="Ultra Large Container Vessel (20,124 TEU)",
+            length=399.9,
+            beam=58.8,
+            draft=14.5,
+            dwt=199692.0,
+            displacement=219000.0,
+            frontal_area=2200.0,
+            engine_efficiency=0.48,
+            sfoc=162.0,
+            risk_index=10.0,
+            maintenance_schedule="Next special drydock: 2027-04-15",
+            parts_replacement_log="Main engine ME-GI cylinder liner & fuel injector overhaul (2026-05-10)"
+        ),
+        models.Ship(
+            name="Berge Olympus",
+            imo="IMO9750957",
+            vessel_type="Newcastlemax Bulk Carrier (Iron Ore / Coal)",
+            length=300.0,
+            beam=50.0,
+            draft=18.5,
+            dwt=211112.0,
+            displacement=245000.0,
+            frontal_area=1550.0,
+            engine_efficiency=0.44,
+            sfoc=168.0,
+            risk_index=12.0,
+            maintenance_schedule="Intermediate hull thickness gauging: 2026-11-20",
+            parts_replacement_log="WindWings automated sail tensioners & aux generator overhaul (2026-06-18)"
+        ),
+        models.Ship(
+            name="Desh Shanti",
+            imo="IMO9272890",
+            vessel_type="Very Large Crude Carrier (VLCC Oil Tanker)",
+            length=333.0,
+            beam=60.0,
+            draft=21.5,
+            dwt=308000.0,
+            displacement=350000.0,
+            frontal_area=1850.0,
+            engine_efficiency=0.41,
+            sfoc=174.0,
+            risk_index=14.0,
+            maintenance_schedule="Drydock survey & inert gas system recertification: 2027-02-10",
+            parts_replacement_log="Cargo oil pump mechanical seals & turbocharger rotor servicing (2026-07-04)"
+        ),
+        models.Ship(
+            name="SCI Chennai",
+            imo="IMO9488346",
+            vessel_type="Panamax Geared Container Carrier (4,250 TEU)",
+            length=260.0,
+            beam=32.2,
+            draft=12.5,
+            dwt=52500.0,
+            displacement=62000.0,
+            frontal_area=1250.0,
+            engine_efficiency=0.46,
+            sfoc=166.0,
+            risk_index=8.0,
+            maintenance_schedule="Annual safety radio & ECDIS / gyro compass calibration: 2026-10-05",
+            parts_replacement_log="Bow thruster hydraulic seals & bilge separator filters renewed (2026-08-02)"
+        ),
+        models.Ship(
+            name="BW Pavilion Leeara",
+            imo="IMO9640645",
+            vessel_type="Tri-Fuel Diesel Electric LNG Carrier (161,870 m³)",
+            length=288.0,
+            beam=44.2,
+            draft=11.8,
+            dwt=84500.0,
+            displacement=122000.0,
+            frontal_area=1600.0,
+            engine_efficiency=0.47,
+            sfoc=164.0,
+            risk_index=9.0,
+            maintenance_schedule="Cryogenic membrane containment & reliquefaction plant audit: 2027-01-18",
+            parts_replacement_log="Boil-off gas (BOG) compressor valves & dual-fuel actuators overhauled (2026-04-22)"
+        ),
+    ]
+
+    # Seed or synchronize default commercial ships
     db = next(get_db())
     try:
-        if db.query(models.Ship).count() == 0:
-            default_ships = [
-                models.Ship(
-                    name="MV Bharat", imo="IMO9876543",
-                    displacement=55000.0, frontal_area=1200.0,
-                    engine_efficiency=0.45, sfoc=170.0,
-                    risk_index=15.0,
-                    maintenance_schedule="Next maintenance: 2026-12-15",
-                    parts_replacement_log="Filter replacement (2026-06-01)"
-                ),
-                models.Ship(
-                    name="Sagar Shakti", imo="IMO9812345",
-                    displacement=82000.0, frontal_area=1450.0,
-                    engine_efficiency=0.42, sfoc=175.0,
-                    risk_index=12.0,
-                    maintenance_schedule="Next maintenance: 2027-03-10",
-                    parts_replacement_log="Turbocharger overhaul (2026-08-01)"
-                ),
-                models.Ship(
-                    name="INS Vikrant", imo="IMO9900001",
-                    displacement=120000.0, frontal_area=1800.0,
-                    engine_efficiency=0.40, sfoc=185.0,
-                    risk_index=8.0,
-                    maintenance_schedule="Next maintenance: 2027-01-20",
-                    parts_replacement_log="Propeller inspection (2026-07-15)"
-                ),
-            ]
-            db.add_all(default_ships)
+        existing_ships = db.query(models.Ship).all()
+        # If DB has old test ships or military ships (e.g. INS Vikrant), clean and replace with authentic commercial carrier fleet
+        has_military_or_legacy = any(s.name in ["INS Vikrant", "Aegir Container", "Aegir Tanker", "Aegir Carrier"] for s in existing_ships)
+        if len(existing_ships) == 0 or has_military_or_legacy:
+            db.query(models.Ship).delete()
             db.commit()
-            print(f"[Aegir] Seeded {len(default_ships)} default ship profiles into the database.")
+            db.add_all(real_carrier_fleet)
+            db.commit()
+            print(f"[Aegir] Seeded {len(real_carrier_fleet)} authentic commercial carrier ship profiles into the database.")
+        else:
+            # Ensure missing ships from real carrier fleet are added
+            existing_imos = {s.imo for s in existing_ships}
+            new_ships = [s for s in real_carrier_fleet if s.imo not in existing_imos]
+            if new_ships:
+                db.add_all(new_ships)
+                db.commit()
+                print(f"[Aegir] Added {len(new_ships)} new real carrier ship profiles.")
     finally:
         db.close()
 
@@ -399,9 +487,6 @@ def emergency_reroute(request: schemas.EmergencyRequest, db: Session = Depends(g
         },
         "excluded_ports": excluded,
         "hazard_fallback": hazard_fallback,
-        # Retained under its old name so the existing dock keeps rendering until
-        # the emergency panel is rebuilt around divert_port.
-        "nearest_port": {"name": port_meta["name"], "distance_nm": diversion["distance_nm"]},
         "current_position": {"lat": request.current_lat, "lon": request.current_lon},
         **metrics
     }

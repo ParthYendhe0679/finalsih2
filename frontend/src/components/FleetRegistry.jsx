@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useApp } from '../context/AppContext';
-import { Plus, Trash2, Edit3, Save, X, Calendar, Wrench, ShieldAlert } from 'lucide-react';
+import { Plus, Trash2, Edit3, Save, X, Calendar, Wrench, ShieldAlert, Anchor, Compass } from 'lucide-react';
 
 export default function FleetRegistry() {
   const { ships, fetchShips, setSelectedShipId } = useApp();
@@ -11,13 +11,18 @@ export default function FleetRegistry() {
   // Form fields
   const [name, setName] = useState('');
   const [imo, setImo] = useState('');
-  const [displacement, setDisplacement] = useState(60000);
-  const [frontalArea, setFrontalArea] = useState(1300);
-  const [engineEfficiency, setEngineEfficiency] = useState(0.44);
-  const [sfoc, setSfoc] = useState(170);
-  const [riskIndex, setRiskIndex] = useState(15.0);
-  const [maintenance, setMaintenance] = useState('Next maintenance: 2026-11-20');
-  const [replacement, setReplacement] = useState('Oil filter replaced (2026-04-10)');
+  const [vesselType, setVesselType] = useState('Container Carrier');
+  const [length, setLength] = useState(300);
+  const [beam, setBeam] = useState(45);
+  const [draft, setDraft] = useState(14);
+  const [dwt, setDwt] = useState(80000);
+  const [displacement, setDisplacement] = useState(95000);
+  const [frontalArea, setFrontalArea] = useState(1400);
+  const [engineEfficiency, setEngineEfficiency] = useState(0.46);
+  const [sfoc, setSfoc] = useState(165);
+  const [riskIndex, setRiskIndex] = useState(10.0);
+  const [maintenance, setMaintenance] = useState('Next drydock: 2027-01-15');
+  const [replacement, setReplacement] = useState('Main engine injector overhaul (2026-06-10)');
 
   // Form submission: Add Ship
   const handleAddShip = async (e) => {
@@ -29,11 +34,16 @@ export default function FleetRegistry() {
         body: JSON.stringify({
           name,
           imo,
-          displacement,
-          frontal_area: frontalArea,
-          engine_efficiency: engineEfficiency,
-          sfoc,
-          risk_index: riskIndex,
+          vessel_type: vesselType,
+          length: parseFloat(length),
+          beam: parseFloat(beam),
+          draft: parseFloat(draft),
+          dwt: parseFloat(dwt),
+          displacement: parseFloat(displacement),
+          frontal_area: parseFloat(frontalArea),
+          engine_efficiency: parseFloat(engineEfficiency),
+          sfoc: parseFloat(sfoc),
+          risk_index: parseFloat(riskIndex),
           maintenance_schedule: maintenance,
           parts_replacement_log: replacement
         })
@@ -42,8 +52,10 @@ export default function FleetRegistry() {
         setShowAddForm(false);
         fetchShips();
         // Reset form
-        setName(''); setImo(''); setDisplacement(60000); setFrontalArea(1300);
-        setEngineEfficiency(0.44); setSfoc(170); setRiskIndex(15.0);
+        setName(''); setImo(''); setVesselType('Container Carrier');
+        setLength(300); setBeam(45); setDraft(14); setDwt(80000);
+        setDisplacement(95000); setFrontalArea(1400);
+        setEngineEfficiency(0.46); setSfoc(165); setRiskIndex(10.0);
       } else {
         const err = await res.json();
         alert(err.detail || "Error adding ship.");
@@ -58,6 +70,11 @@ export default function FleetRegistry() {
     setEditingShipId(ship.id);
     setName(ship.name);
     setImo(ship.imo);
+    setVesselType(ship.vessel_type || 'Container Carrier');
+    setLength(ship.length ?? 300);
+    setBeam(ship.beam ?? 45);
+    setDraft(ship.draft ?? 14);
+    setDwt(ship.dwt ?? 80000);
     setDisplacement(ship.displacement);
     setFrontalArea(ship.frontal_area);
     setEngineEfficiency(ship.engine_efficiency);
@@ -75,11 +92,16 @@ export default function FleetRegistry() {
         body: JSON.stringify({
           name,
           imo,
-          displacement,
-          frontal_area: frontalArea,
-          engine_efficiency: engineEfficiency,
-          sfoc,
-          risk_index: riskIndex,
+          vessel_type: vesselType,
+          length: parseFloat(length),
+          beam: parseFloat(beam),
+          draft: parseFloat(draft),
+          dwt: parseFloat(dwt),
+          displacement: parseFloat(displacement),
+          frontal_area: parseFloat(frontalArea),
+          engine_efficiency: parseFloat(engineEfficiency),
+          sfoc: parseFloat(sfoc),
+          risk_index: parseFloat(riskIndex),
           maintenance_schedule: maintenance,
           parts_replacement_log: replacement
         })
@@ -137,62 +159,91 @@ export default function FleetRegistry() {
       {/* Title Controls */}
       <div className="flex items-center justify-between">
         <div>
-          <h3 className="text-base font-bold text-slate-900">Vessel Registry Database</h3>
-          <p className="text-xs text-slate-400 font-medium">Configure hull geometries and power constants for exact routing computations.</p>
+          <h3 className="text-base font-bold text-slate-900">Commercial Vessel Registry Database</h3>
+          <p className="text-xs text-slate-400 font-medium">Authentic carrier hull geometries, displacement ratings, and hydrodynamic parameters for exact routing computations.</p>
         </div>
         <button
           onClick={() => setShowAddForm(!showAddForm)}
           className="flex items-center space-x-1.5 bg-blue-50 hover:bg-blue-100 border border-blue-200 text-blue-600 text-xs py-2 px-3.5 rounded-xl transition font-semibold shadow-2xs"
         >
           {showAddForm ? <X className="h-4 w-4" /> : <Plus className="h-4 w-4" />}
-          <span>{showAddForm ? "Cancel Registration" : "Register Vessel"}</span>
+          <span>{showAddForm ? "Cancel Registration" : "Register Carrier"}</span>
         </button>
       </div>
 
       {/* Add Ship Form */}
       {showAddForm && (
-        <form onSubmit={handleAddShip} className="bg-slate-50 border border-slate-200/80 rounded-2xl p-5 grid grid-cols-1 md:grid-cols-3 gap-4 text-xs shadow-xs">
+        <form onSubmit={handleAddShip} className="bg-slate-50 border border-slate-200/80 rounded-2xl p-5 grid grid-cols-1 md:grid-cols-4 gap-4 text-xs shadow-xs">
           <div className="space-y-3">
             <div>
               <label className="block text-[10px] text-slate-500 font-bold uppercase mb-1">Vessel Name</label>
-              <input type="text" value={name} onChange={(e) => setName(e.target.value)} required className="w-full bg-white border border-slate-200 rounded-xl p-2.5 text-slate-800 outline-none focus:ring-2 focus:ring-blue-500" />
+              <input type="text" value={name} onChange={(e) => setName(e.target.value)} required placeholder="e.g. MV Ever Given" className="w-full bg-white border border-slate-200 rounded-xl p-2.5 text-slate-800 outline-none focus:ring-2 focus:ring-blue-500" />
             </div>
             <div>
               <label className="block text-[10px] text-slate-500 font-bold uppercase mb-1">IMO Number</label>
               <input type="text" value={imo} onChange={(e) => setImo(e.target.value)} required placeholder="IMOXXXXXXX" className="w-full bg-white border border-slate-200 rounded-xl p-2.5 text-slate-800 outline-none focus:ring-2 focus:ring-blue-500" />
             </div>
+            <div>
+              <label className="block text-[10px] text-slate-500 font-bold uppercase mb-1">Vessel Type</label>
+              <input type="text" value={vesselType} onChange={(e) => setVesselType(e.target.value)} required placeholder="e.g. Ultra Large Container Vessel" className="w-full bg-white border border-slate-200 rounded-xl p-2.5 text-slate-800 outline-none focus:ring-2 focus:ring-blue-500" />
+            </div>
           </div>
+
           <div className="space-y-3">
             <div className="grid grid-cols-2 gap-2">
               <div>
-                <label className="block text-[10px] text-slate-500 font-bold uppercase mb-1">Disp. (Tons)</label>
-                <input type="number" value={displacement} onChange={(e) => setDisplacement(parseFloat(e.target.value))} required className="w-full bg-white border border-slate-200 rounded-xl p-2.5 text-slate-800 outline-none focus:ring-2 focus:ring-blue-500" />
+                <label className="block text-[10px] text-slate-500 font-bold uppercase mb-1">Length LOA (m)</label>
+                <input type="number" step="0.1" value={length} onChange={(e) => setLength(e.target.value)} required className="w-full bg-white border border-slate-200 rounded-xl p-2.5 text-slate-800 outline-none focus:ring-2 focus:ring-blue-500" />
+              </div>
+              <div>
+                <label className="block text-[10px] text-slate-500 font-bold uppercase mb-1">Beam (m)</label>
+                <input type="number" step="0.1" value={beam} onChange={(e) => setBeam(e.target.value)} required className="w-full bg-white border border-slate-200 rounded-xl p-2.5 text-slate-800 outline-none focus:ring-2 focus:ring-blue-500" />
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <label className="block text-[10px] text-slate-500 font-bold uppercase mb-1">Draft (m)</label>
+                <input type="number" step="0.1" value={draft} onChange={(e) => setDraft(e.target.value)} required className="w-full bg-white border border-slate-200 rounded-xl p-2.5 text-slate-800 outline-none focus:ring-2 focus:ring-blue-500" />
+              </div>
+              <div>
+                <label className="block text-[10px] text-slate-500 font-bold uppercase mb-1">DWT (MT)</label>
+                <input type="number" value={dwt} onChange={(e) => setDwt(e.target.value)} required className="w-full bg-white border border-slate-200 rounded-xl p-2.5 text-slate-800 outline-none focus:ring-2 focus:ring-blue-500" />
+              </div>
+            </div>
+          </div>
+
+          <div className="space-y-3">
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <label className="block text-[10px] text-slate-500 font-bold uppercase mb-1">Disp. (MT)</label>
+                <input type="number" value={displacement} onChange={(e) => setDisplacement(e.target.value)} required className="w-full bg-white border border-slate-200 rounded-xl p-2.5 text-slate-800 outline-none focus:ring-2 focus:ring-blue-500" />
               </div>
               <div>
                 <label className="block text-[10px] text-slate-500 font-bold uppercase mb-1">Frontal (m²)</label>
-                <input type="number" value={frontalArea} onChange={(e) => setFrontalArea(parseFloat(e.target.value))} required className="w-full bg-white border border-slate-200 rounded-xl p-2.5 text-slate-800 outline-none focus:ring-2 focus:ring-blue-500" />
+                <input type="number" value={frontalArea} onChange={(e) => setFrontalArea(e.target.value)} required className="w-full bg-white border border-slate-200 rounded-xl p-2.5 text-slate-800 outline-none focus:ring-2 focus:ring-blue-500" />
               </div>
             </div>
             <div className="grid grid-cols-2 gap-2">
               <div>
                 <label className="block text-[10px] text-slate-500 font-bold uppercase mb-1">Engine Eff.</label>
-                <input type="number" step="0.01" value={engineEfficiency} onChange={(e) => setEngineEfficiency(parseFloat(e.target.value))} required className="w-full bg-white border border-slate-200 rounded-xl p-2.5 text-slate-800 outline-none focus:ring-2 focus:ring-blue-500" />
+                <input type="number" step="0.01" value={engineEfficiency} onChange={(e) => setEngineEfficiency(e.target.value)} required className="w-full bg-white border border-slate-200 rounded-xl p-2.5 text-slate-800 outline-none focus:ring-2 focus:ring-blue-500" />
               </div>
               <div>
                 <label className="block text-[10px] text-slate-500 font-bold uppercase mb-1">SFOC (g/kWh)</label>
-                <input type="number" value={sfoc} onChange={(e) => setSfoc(parseFloat(e.target.value))} required className="w-full bg-white border border-slate-200 rounded-xl p-2.5 text-slate-800 outline-none focus:ring-2 focus:ring-blue-500" />
+                <input type="number" value={sfoc} onChange={(e) => setSfoc(e.target.value)} required className="w-full bg-white border border-slate-200 rounded-xl p-2.5 text-slate-800 outline-none focus:ring-2 focus:ring-blue-500" />
               </div>
             </div>
           </div>
+
           <div className="space-y-3 flex flex-col justify-between">
-            <div className="grid grid-cols-2 gap-2">
+            <div className="space-y-2">
               <div>
-                <label className="block text-[10px] text-slate-500 font-bold uppercase mb-1">Risk Rating (0-100)</label>
-                <input type="number" value={riskIndex} onChange={(e) => setRiskIndex(parseFloat(e.target.value))} required className="w-full bg-white border border-slate-200 rounded-xl p-2.5 text-slate-800 outline-none focus:ring-2 focus:ring-blue-500" />
+                <label className="block text-[10px] text-slate-500 font-bold uppercase mb-1">Hull Risk Rating (0-100)</label>
+                <input type="number" value={riskIndex} onChange={(e) => setRiskIndex(e.target.value)} required className="w-full bg-white border border-slate-200 rounded-xl p-2 text-slate-800 outline-none focus:ring-2 focus:ring-blue-500" />
               </div>
               <div>
                 <label className="block text-[10px] text-slate-500 font-bold uppercase mb-1">Maintenance Date</label>
-                <input type="text" value={maintenance} onChange={(e) => setMaintenance(e.target.value)} required className="w-full bg-white border border-slate-200 rounded-xl p-2.5 text-slate-800 outline-none focus:ring-2 focus:ring-blue-500" />
+                <input type="text" value={maintenance} onChange={(e) => setMaintenance(e.target.value)} required className="w-full bg-white border border-slate-200 rounded-xl p-2 text-slate-800 outline-none focus:ring-2 focus:ring-blue-500" />
               </div>
             </div>
             <button type="submit" className="w-full bg-blue-600 text-white font-bold py-2.5 rounded-xl border border-blue-600 hover:bg-blue-700 transition shadow-2xs">
@@ -208,20 +259,26 @@ export default function FleetRegistry() {
           <div key={ship.id} className="bg-white border border-slate-200/80 rounded-2xl p-4 flex flex-col lg:flex-row items-center justify-between gap-6 hover:shadow-md transition shadow-xs">
             
             {/* Circular Gauge and Name */}
-            <div className="flex items-center space-x-4 w-full lg:w-1/4">
+            <div className="flex items-center space-x-4 w-full lg:w-1/3">
               {renderCircularBarometer(ship.risk_index)}
               <div>
                 <h4 className="text-sm font-bold text-slate-900 tracking-tight">{ship.name}</h4>
-                <p className="text-xs text-slate-400 font-medium">{ship.imo}</p>
-                <div className="flex items-center space-x-1.5 text-[10px] text-rose-600 mt-1 font-semibold">
-                  <ShieldAlert className="h-3.5 w-3.5 shrink-0" />
-                  <span>Hull Risk: {ship.risk_index > 50 ? "High" : ship.risk_index > 25 ? "Caution" : "Nominal"}</span>
+                <div className="flex items-center space-x-2 text-xs text-slate-400 font-medium">
+                  <span>{ship.imo}</span>
+                  <span>•</span>
+                  <span className="text-blue-600 font-semibold">{ship.vessel_type || 'Commercial Carrier'}</span>
+                </div>
+                <div className="flex items-center space-x-2 text-[10px] text-slate-500 font-mono mt-1">
+                  <span>LOA: {ship.length ?? 300}m</span>
+                  <span>Beam: {ship.beam ?? 45}m</span>
+                  <span>Draft: {ship.draft ?? 14}m</span>
+                  <span>DWT: {(ship.dwt ?? 80000).toLocaleString()} MT</span>
                 </div>
               </div>
             </div>
 
             {/* Vessel Specifications parameters */}
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 w-full lg:w-1/2 text-xs text-slate-700">
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 w-full lg:w-5/12 text-xs text-slate-700">
               {editingShipId === ship.id ? (
                 <>
                   <div>
@@ -274,11 +331,11 @@ export default function FleetRegistry() {
                 <>
                   <div className="flex items-center space-x-2">
                     <Calendar className="h-3.5 w-3.5 text-blue-600 shrink-0" />
-                    <span>{ship.maintenance_schedule}</span>
+                    <span className="truncate">{ship.maintenance_schedule}</span>
                   </div>
                   <div className="flex items-center space-x-2">
                     <Wrench className="h-3.5 w-3.5 text-indigo-600 shrink-0" />
-                    <span>{ship.parts_replacement_log}</span>
+                    <span className="truncate">{ship.parts_replacement_log}</span>
                   </div>
                 </>
               )}
