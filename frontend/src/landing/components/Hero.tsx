@@ -41,8 +41,6 @@ export function Hero({ onLaunchDashboard }: { onLaunchDashboard?: () => void }) 
 
       <div className="shell hero__grid">
         <div className="hero__copy">
-          <p className="eyebrow">Maritime Voyage Intelligence</p>
-
           <h1 className="hero__title">Sagar Setu</h1>
 
           <p className="hero__sub">Dynamic Maritime Voyage Optimization</p>

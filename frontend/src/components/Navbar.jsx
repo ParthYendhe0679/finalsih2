@@ -22,25 +22,14 @@ export default function Navbar({ onBackToLanding }) {
 
         <div 
           onClick={onBackToLanding}
-          className={`flex items-center space-x-3 ${onBackToLanding ? 'cursor-pointer group' : ''}`}
+          className={`flex items-center ${onBackToLanding ? 'cursor-pointer group' : ''}`}
           title={onBackToLanding ? "Back to Landing Page" : undefined}
         >
           <img 
-            src="/logo.jpg" 
-            alt="Sagar Setu" 
-            className="w-10 h-10 rounded-full object-cover border-2 border-white shadow-xs" 
-          />
-          <img 
             src="/sagar-setu-title.png" 
             alt="सागर सेतु" 
-            className="h-8 w-auto object-contain hidden sm:block" 
+            className="h-9 w-auto object-contain" 
           />
-          <div>
-            <h1 className="text-base font-bold tracking-tight text-slate-900 flex items-center gap-2 font-sans group-hover:text-blue-600 transition">
-              Sagar Setu
-            </h1>
-            <p className="text-[10px] text-slate-400 font-medium tracking-tight -mt-0.5">STRATEGIC VOYAGE SCHEDULER</p>
-          </div>
         </div>
       </div>
 

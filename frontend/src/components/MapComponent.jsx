@@ -795,38 +795,6 @@ export default function MapComponent() {
           </div>
         )}
       </div>
-
-      {/* Route legend & Attribution disclaimer — bottom-left HUD */}
-      {routes && (
-        <div className="absolute bottom-4 left-4 z-[1000] bg-white/95 border border-slate-200/80 px-3.5 py-2.5 rounded-2xl shadow-md backdrop-blur-md text-[10px] font-sans space-y-1.5 max-w-[320px]">
-          <div className="space-y-1">
-            {Object.entries(ROUTE_CONFIGS).map(([key, cfg]) => {
-              const isSelected = selectedRouteKey === key;
-              return (
-                <div
-                  key={key}
-                  onClick={() => setSelectedRouteKey(key)}
-                  className={`flex items-center space-x-2 cursor-pointer px-1.5 py-0.5 rounded-lg transition ${
-                    isSelected ? 'bg-slate-100 font-bold' : 'hover:bg-slate-50'
-                  }`}
-                >
-                  <span
-                    className="inline-block w-4 h-1 rounded-full"
-                    style={{ backgroundColor: cfg.color, height: isSelected ? 3 : 2 }}
-                  />
-                  <span className={`${isSelected ? 'text-slate-900' : 'text-slate-500'} font-semibold`}>
-                    {cfg.label} {key === 'balanced' && '⭐'}
-                  </span>
-                </div>
-              );
-            })}
-          </div>
-
-          <div className="pt-1.5 border-t border-slate-100 text-[8.5px] text-slate-400 leading-snug">
-            Forecast model data for decision support. Not certified navigation info.
-          </div>
-        </div>
-      )}
     </div>
   );
 }
