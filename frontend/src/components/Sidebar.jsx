@@ -4,6 +4,29 @@ import { Sliders, Anchor, Ship, Navigation, Play, Pause, RotateCcw, CloudLightni
 
 const EMERGENCY_ICONS = { CloudLightning, ShieldAlert, HeartPulse, Wrench };
 
+// 25 ports is too many for a flat list, so group the selector by region. Falls
+// back to a plain list before the registry has loaded.
+function renderPortOptions(ports, portsList, disabledKey) {
+  if (!ports || !ports.length) {
+    return portsList.map((port) => (
+      <option key={port} value={port} disabled={port === disabledKey}>{port}</option>
+    ));
+  }
+  const byRegion = [];
+  ports.forEach((p) => {
+    const bucket = byRegion.find((b) => b.region === p.region);
+    if (bucket) bucket.items.push(p);
+    else byRegion.push({ region: p.region, items: [p] });
+  });
+  return byRegion.map((b) => (
+    <optgroup key={b.region} label={b.region}>
+      {b.items.map((p) => (
+        <option key={p.key} value={p.key} disabled={p.key === disabledKey}>{p.name}</option>
+      ))}
+    </optgroup>
+  ));
+}
+
 export default function Sidebar() {
   const {
     ships,
@@ -24,6 +47,8 @@ export default function Sidebar() {
     calculateRoutes,
     triggerWeatherShiftAndReplan,
     portsList,
+    ports,
+    emergencyGate,
     routes,
     emergencyTypes,
     emergencyType,
@@ -65,9 +90,7 @@ export default function Sidebar() {
               onChange={(e) => setOrigin(e.target.value)}
               className="w-full bg-slate-50 text-xs font-medium text-slate-800 border border-slate-200 rounded-xl px-3 py-2 focus:border-blue-500 focus:bg-white outline-none cursor-pointer shadow-2xs"
             >
-              {portsList.map((port) => (
-                <option key={port} value={port}>{port}</option>
-              ))}
+              {renderPortOptions(ports, portsList)}
             </select>
           </div>
           <div>
@@ -77,9 +100,7 @@ export default function Sidebar() {
               onChange={(e) => setDestination(e.target.value)}
               className="w-full bg-slate-50 text-xs font-medium text-slate-800 border border-slate-200 rounded-xl px-3 py-2 focus:border-blue-500 focus:bg-white outline-none cursor-pointer shadow-2xs"
             >
-              {portsList.map((port) => (
-                <option key={port} value={port} disabled={port === origin}>{port}</option>
-              ))}
+              {renderPortOptions(ports, portsList, origin)}
             </select>
           </div>
         </div>
@@ -310,9 +331,9 @@ export default function Sidebar() {
           )}
         </div>
 
-        {!routes && (
-          <p className="text-[11px] text-slate-400 font-medium bg-slate-50 border border-slate-200 rounded-xl p-2.5">
-            Calculate optimal routes first, then declare an emergency to re-route from the vessel's live position.
+        {!emergencyGate.enabled && (
+          <p className="text-[11px] text-slate-500 font-medium bg-amber-50 border border-amber-200 rounded-xl p-2.5">
+            {emergencyGate.reason}
           </p>
         )}
 
@@ -325,8 +346,8 @@ export default function Sidebar() {
                 <button
                   key={et.key}
                   onClick={() => triggerEmergency(et.key)}
-                  disabled={emergencyLoading}
-                  className={`flex flex-col items-center justify-center space-y-1 text-center py-2.5 px-2 rounded-xl border text-[11px] font-semibold transition cursor-pointer disabled:opacity-50 ${
+                  disabled={emergencyLoading || !emergencyGate.enabled}
+                  className={`flex flex-col items-center justify-center space-y-1 text-center py-2.5 px-2 rounded-xl border text-[11px] font-semibold transition cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed ${
                     isActive
                       ? 'bg-rose-600 border-rose-600 text-white shadow-xs'
                       : 'bg-rose-50/60 border-rose-200 text-rose-700 hover:bg-rose-100'

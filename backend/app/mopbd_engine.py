@@ -10,14 +10,62 @@ from .grid import (  # noqa: F401
 )
 from .raster_parser import env_grid
 
-# Ports mapping (lat, lon)
-PORTS = {
-    "JNPT": (18.95, 72.95),
-    "Colombo": (6.94, 79.86),
-    "Singapore": (1.35, 103.82),
-    "Aden": (12.80, 45.00),
-    "Port Louis": (-20.16, 57.50)
+# --- Port registry -------------------------------------------------------
+#
+# The major Indian Ocean rim ports. Coordinates are the seaward *approach* of
+# each terminal rather than the berth itself: at 0.25 deg a river berth like
+# Yangon's falls on a land cell, and while DSLite would snap it to open water
+# anyway, an approach fix keeps the snap short and the reported distance honest.
+#
+# Dict keys are stable identifiers and are what the API accepts; PORT_META
+# carries the display name and the grouping the UI renders. Keys for the five
+# original ports are unchanged so saved voyages and tests keep resolving.
+PORT_META = {
+    # --- India ---
+    "Mumbai":        {"name": "Mumbai Port",                  "lat":  18.94, "lon":  72.84, "country": "India",        "region": "India"},
+    "JNPT":          {"name": "Jawaharlal Nehru Port",        "lat":  18.95, "lon":  72.95, "country": "India",        "region": "India"},
+    "Mundra":        {"name": "Mundra Port",                  "lat":  22.75, "lon":  69.72, "country": "India",        "region": "India"},
+    "Deendayal":     {"name": "Deendayal Port (Kandla)",      "lat":  22.93, "lon":  70.13, "country": "India",        "region": "India"},
+    "Kochi":         {"name": "Kochi Port",                   "lat":   9.93, "lon":  76.22, "country": "India",        "region": "India"},
+    "Chennai":       {"name": "Chennai Port",                 "lat":  13.10, "lon":  80.32, "country": "India",        "region": "India"},
+    "Visakhapatnam": {"name": "Visakhapatnam Port",           "lat":  17.68, "lon":  83.30, "country": "India",        "region": "India"},
+
+    # --- Pakistan & the Gulf ---
+    "Karachi":       {"name": "Karachi Port",                 "lat":  24.79, "lon":  66.96, "country": "Pakistan",     "region": "Pakistan & Gulf"},
+    "Gwadar":        {"name": "Gwadar Port",                  "lat":  25.12, "lon":  62.32, "country": "Pakistan",     "region": "Pakistan & Gulf"},
+    "Jebel Ali":     {"name": "Jebel Ali Port",               "lat":  25.01, "lon":  55.06, "country": "UAE",          "region": "Pakistan & Gulf"},
+
+    # --- Sri Lanka & Bay of Bengal ---
+    "Colombo":       {"name": "Colombo Port",                 "lat":   6.94, "lon":  79.83, "country": "Sri Lanka",    "region": "Sri Lanka & Bay of Bengal"},
+    "Hambantota":    {"name": "Hambantota Port",              "lat":   6.11, "lon":  81.12, "country": "Sri Lanka",    "region": "Sri Lanka & Bay of Bengal"},
+    "Chattogram":    {"name": "Chattogram Port",              "lat":  22.24, "lon":  91.80, "country": "Bangladesh",   "region": "Sri Lanka & Bay of Bengal"},
+    "Yangon":        {"name": "Yangon Port",                  "lat":  16.55, "lon":  96.28, "country": "Myanmar",      "region": "Sri Lanka & Bay of Bengal"},
+
+    # --- Arabian Peninsula ---
+    "Salalah":       {"name": "Port of Salalah",              "lat":  16.93, "lon":  54.00, "country": "Oman",         "region": "Arabian Peninsula"},
+    "Duqm":          {"name": "Port of Duqm",                 "lat":  19.66, "lon":  57.70, "country": "Oman",         "region": "Arabian Peninsula"},
+    "Aden":          {"name": "Port of Aden",                 "lat":  12.80, "lon":  45.00, "country": "Yemen",        "region": "Arabian Peninsula"},
+
+    # --- East Africa ---
+    "Mombasa":       {"name": "Mombasa Port",                 "lat":  -4.06, "lon":  39.66, "country": "Kenya",        "region": "East Africa"},
+    "Dar es Salaam": {"name": "Dar es Salaam Port",           "lat":  -6.82, "lon":  39.29, "country": "Tanzania",     "region": "East Africa"},
+
+    # --- Southern Africa ---
+    "Maputo":        {"name": "Maputo Port",                  "lat": -25.97, "lon":  32.57, "country": "Mozambique",   "region": "Southern Africa"},
+    "Richards Bay":  {"name": "Richards Bay Port",            "lat": -28.80, "lon":  32.08, "country": "South Africa", "region": "Southern Africa"},
+    "Durban":        {"name": "Durban Port",                  "lat": -29.87, "lon":  31.03, "country": "South Africa", "region": "Southern Africa"},
+
+    # --- Southeast Asia ---
+    "Singapore":     {"name": "Port of Singapore",            "lat":   1.26, "lon": 103.83, "country": "Singapore",    "region": "Southeast Asia"},
+    "Tanjung Priok": {"name": "Tanjung Priok Port",           "lat":  -6.10, "lon": 106.88, "country": "Indonesia",    "region": "Southeast Asia"},
+
+    # --- Indian Ocean islands ---
+    "Port Louis":    {"name": "Port Louis",                   "lat": -20.16, "lon":  57.50, "country": "Mauritius",    "region": "Indian Ocean Islands"},
 }
+
+# Ports mapping (lat, lon). Derived from PORT_META so the coordinates live in
+# exactly one place; every existing call site indexes this the same way as before.
+PORTS = {key: (m["lat"], m["lon"]) for key, m in PORT_META.items()}
 
 # Neighbour offsets. Tables below are indexed by _off_idx(dr, dc) so a lookup is
 # a list index rather than a tuple hash.
@@ -307,15 +355,36 @@ class DSLite:
             )
         return cell
 
-    def is_in_port_zone(self, r: int, c: int, radius_cells: float = 3.5) -> bool:
+    # Radius of the terminal approach area, in cells (~100 km). Referenced by
+    # both the cost exemption and the repair that re-roots the search, which
+    # must agree on the region or the two silently disagree about edge costs.
+    PORT_ZONE_CELLS = 3.5
+
+    def is_in_port_zone(self, r: int, c: int, radius_cells: float = None) -> bool:
         """
         True when cell (r, c) is within the terminal approach area of the
         origin or destination port (~100 km). Within this zone, vessel may
         safely transition between the coastal berth and open ocean.
         """
+        if radius_cells is None:
+            radius_cells = self.PORT_ZONE_CELLS
         d_start = math.sqrt((r - self.s_start[0]) ** 2 + (c - self.s_start[1]) ** 2)
         d_goal = math.sqrt((r - self.s_goal[0]) ** 2 + (c - self.s_goal[1]) ** 2)
         return (d_start <= radius_cells) or (d_goal <= radius_cells)
+
+    def _port_zone_cells(self, centre: Tuple[int, int]) -> List[Tuple[int, int]]:
+        """Navigable cells inside the port-approach disc around ``centre``."""
+        radius = self.PORT_ZONE_CELLS
+        span = int(math.ceil(radius))
+        cells = []
+        for dr in range(-span, span + 1):
+            for dc in range(-span, span + 1):
+                if math.hypot(dr, dc) > radius:
+                    continue
+                cell = (centre[0] + dr, centre[1] + dc)
+                if is_navigable(*cell):
+                    cells.append(cell)
+        return cells
 
     # ----------------------------------------------------------------- costs
 
@@ -533,6 +602,19 @@ class DSLite:
             vertices_to_update.add(cell)
             for succ in self.get_successors(cell):
                 vertices_to_update.add(succ)
+
+        # 3b. cost() exempts the port-approach discs from the coastal standoff
+        #     penalty, and one of those discs is anchored to s_start. Re-rooting
+        #     the search therefore changes edge costs around both the old and the
+        #     new start, even though no weather did. Those cells are absent from
+        #     changed_cells, so without this they are never re-evaluated and keep
+        #     g = inf right next to the vessel -- which surfaced downstream as a
+        #     stalled route extraction rather than as anything weather-related.
+        for centre in (s_last, self.s_start):
+            for cell in self._port_zone_cells(centre):
+                vertices_to_update.add(cell)
+                for succ in self.get_successors(cell):
+                    vertices_to_update.add(succ)
 
         for u in vertices_to_update:
             self.update_vertex(u)
@@ -761,3 +843,195 @@ def calculate_routes_from_point(resume_coord: Tuple[float, float], destination: 
         raise ValueError(f"Destination '{destination}' not found in ports database.")
 
     return _solve_front(tuple(resume_coord), goal_coord, ship_profile, custom_weights)
+
+
+# --- Emergency diversion: nearest port by sea --------------------------------
+
+# Snapped ocean cell -> the ports that resolve to it. Several registry entries
+# can share one cell at 0.25 deg (Mumbai and JNPT do), so the value is a list.
+_PORT_CELLS: Optional[Dict[Tuple[int, int], List[str]]] = None
+
+# Flat mask, 1 where a cell lies inside any port's approach disc. See
+# _diversion_step_cost for why the exemption has to cover every port here.
+_PORT_ZONE: Optional[bytearray] = None
+
+
+def port_cells() -> Dict[Tuple[int, int], List[str]]:
+    """Map each port's snapped ocean cell to the port names that land on it."""
+    global _PORT_CELLS
+    if _PORT_CELLS is None:
+        table: Dict[Tuple[int, int], List[str]] = {}
+        for name, (lat, lon) in PORTS.items():
+            cell = env_grid.nearest_navigable(lat, lon)
+            if cell is None:
+                continue
+            table.setdefault(cell, []).append(name)
+        _PORT_CELLS = table
+    return _PORT_CELLS
+
+
+def port_zone_mask() -> bytearray:
+    """Cells inside the approach disc of any port, as a flat row * WIDTH + col mask."""
+    global _PORT_ZONE
+    if _PORT_ZONE is None:
+        radius = DSLite.PORT_ZONE_CELLS
+        span = int(math.ceil(radius))
+        mask = bytearray(HEIGHT * WIDTH)
+        for pr, pc in port_cells():
+            for dr in range(-span, span + 1):
+                for dc in range(-span, span + 1):
+                    if math.hypot(dr, dc) > radius:
+                        continue
+                    r, c = pr + dr, pc + dc
+                    if in_bounds(r, c):
+                        mask[r * WIDTH + c] = 1
+        _PORT_ZONE = mask
+    return _PORT_ZONE
+
+
+def _diversion_step_cost(u: Tuple[int, int], v: Tuple[int, int], prof: Dict[str, float],
+                         w_t: float, w_f: float, w_s: float,
+                         zone: bytearray, start: Tuple[int, int],
+                         start_span: float) -> float:
+    """
+    The same scalarised edge cost DSLite uses, with the port-approach exemption
+    generalised.
+
+    DSLite waives the coastal standoff penalty near s_start and s_goal. A
+    diversion search has no single goal -- any port may turn out to be the
+    answer -- so the exemption covers every port's disc plus the vessel's own
+    position. Without that, the search would pay the full standoff penalty to
+    enter the very berth it is trying to reach and could rank a distant port
+    ahead of one right alongside.
+    """
+    r_dst, c_dst = v
+    d_land = env_grid.dist_to_land_l[r_dst][c_dst]
+    if d_land <= 0.0:
+        return float("inf")
+
+    t, f, r = _edge_vector_step(u, v, prof)
+    if t == float("inf"):
+        return float("inf")
+
+    if d_land < env_grid.STANDOFF_CELLS and not zone[r_dst * WIDTH + c_dst]:
+        near_start = math.hypot(r_dst - start[0], c_dst - start[1]) <= start_span
+        if not near_start:
+            return (w_t * t + w_f * (f / 80.0) + w_s * (r / 8.0)
+                    + 16.0 * ((env_grid.STANDOFF_CELLS - d_land) / env_grid.STANDOFF_CELLS) ** 2.0)
+
+    return w_t * t + w_f * (f / 80.0) + w_s * (r / 8.0)
+
+
+def nearest_port_by_sea(vessel_coord: Tuple[float, float], ship_profile: Dict[str, Any],
+                        weights: Dict[str, float],
+                        excluded: Any = ()) -> Dict[str, Any]:
+    """
+    The nearest port reachable from ``vessel_coord``, measured by actual sea
+    route under ``weights``, together with the route to it.
+
+    A single Dijkstra expands outward from the vessel and stops the moment a
+    port's cell is settled, so the whole answer costs one search rather than one
+    solve per candidate port -- and far less than a full solve, because it
+    terminates as soon as the closest port is reached rather than running to a
+    fixed goal.
+
+    Great-circle distance is not a usable proxy for this. A port on the far side
+    of a landmass is near on a straight line and hundreds of miles away by sea:
+    from off Goa, Chennai is the closest port as the crow flies and roughly nine
+    times further than Mumbai by water.
+
+    ``excluded`` names ports that must not be chosen (a cyclone or piracy zone
+    can swallow the port that would otherwise win). Raises RouteUnreachable if
+    no eligible port can be reached, which lets the caller retry unexcluded.
+    """
+    excluded = set(excluded or ())
+
+    start = env_grid.nearest_navigable(vessel_coord[0], vessel_coord[1])
+    if start is None:
+        raise RouteUnreachable(
+            f"No navigable water near the vessel at {vessel_coord[0]:.2f}, {vessel_coord[1]:.2f}."
+        )
+
+    eligible: Dict[Tuple[int, int], List[str]] = {}
+    for cell, names in port_cells().items():
+        keep = [n for n in names if n not in excluded]
+        if keep:
+            eligible[cell] = keep
+    if not eligible:
+        raise RouteUnreachable("Every port in the registry was excluded from the diversion.")
+
+    prof = resolve_profile(ship_profile)
+    w_t = float(weights.get("time_weight", 0.33))
+    w_f = float(weights.get("fuel_weight", 0.33))
+    w_s = float(weights.get("safety_weight", 0.34))
+
+    succ = successor_table()
+    zone = port_zone_mask()
+    span = DSLite.PORT_ZONE_CELLS
+
+    dist: Dict[Tuple[int, int], float] = {start: 0.0}
+    parent: Dict[Tuple[int, int], Tuple[int, int]] = {}
+    settled = set()
+    pq: List[Tuple[float, Tuple[int, int]]] = [(0.0, start)]
+
+    found = None
+    while pq:
+        d, u = heapq.heappop(pq)
+        if u in settled:
+            continue
+        settled.add(u)
+
+        if u in eligible:
+            found = u
+            break
+
+        for v in succ[u[0] * WIDTH + u[1]]:
+            if v in settled:
+                continue
+            step = _diversion_step_cost(u, v, prof, w_t, w_f, w_s, zone, start, span)
+            if step == float("inf"):
+                continue
+            nd = d + step
+            if nd < dist.get(v, float("inf")):
+                dist[v] = nd
+                parent[v] = u
+                heapq.heappush(pq, (nd, v))
+
+    if found is None:
+        raise RouteUnreachable(
+            "No eligible port is reachable by sea from the vessel's position."
+        )
+
+    # Several ports can share the winning cell; break the tie on true berth
+    # distance so the reported name matches the coordinate the route ends at.
+    names = eligible[found]
+    port = min(
+        names,
+        key=lambda n: haversine_distance(vessel_coord[0], vessel_coord[1], *PORTS[n]),
+    )
+
+    cells = [found]
+    while cells[-1] != start:
+        cells.append(parent[cells[-1]])
+    cells.reverse()
+
+    coords = [grid_to_coord(r, c) for r, c in cells]
+    # Anchor the ends at the vessel's real fix and the real berth, matching
+    # DSLite.get_path so both kinds of route render identically.
+    if coords[0] != tuple(vessel_coord):
+        coords.insert(0, tuple(vessel_coord))
+    if coords[-1] != PORTS[port]:
+        coords.append(PORTS[port])
+
+    route_nm = sum(
+        haversine_distance(coords[i][0], coords[i][1], coords[i + 1][0], coords[i + 1][1])
+        for i in range(len(coords) - 1)
+    )
+
+    return {
+        "port": port,
+        "path": coords,
+        "cost": dist[found],
+        "distance_nm": round(route_nm, 1),
+        "cells_explored": len(settled),
+    }

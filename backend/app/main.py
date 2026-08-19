@@ -12,8 +12,8 @@ from . import models, schemas, crud  # noqa: F401
 from .raster_parser import env_grid
 from .grid import haversine_distance
 from .mopbd_engine import (
-    calculate_pareto_routes, calculate_routes_from_point, DSLite, PORTS,
-    get_path_metrics, WEIGHT_PROFILES, RouteUnreachable,
+    calculate_pareto_routes, calculate_routes_from_point, DSLite, PORTS, PORT_META,
+    get_path_metrics, WEIGHT_PROFILES, RouteUnreachable, nearest_port_by_sea,
 )
 
 # --- Emergency Rerouting Profiles ---
@@ -32,22 +32,22 @@ EMERGENCY_META = {
     "cyclone": {
         "label": "Cyclone / Severe Weather",
         "hazard_radius_km": 300.0,
-        "recommendation": "Routing prioritizes safety, steering clear of the storm cell forming around the vessel's position.",
+        "recommendation": "Diverting to the nearest port reachable by sea, weighted for safety and steering clear of the storm cell around the vessel. Ports inside the storm are skipped.",
     },
     "piracy": {
         "label": "Piracy / Man-Made Threat",
         "hazard_radius_km": 250.0,
-        "recommendation": "Routing maximizes safety margin and diverts away from the reported threat zone near the vessel.",
+        "recommendation": "Diverting to the nearest port reachable by sea, maximising safety margin and keeping clear of the reported threat zone. Ports inside the threat zone are skipped.",
     },
     "medical": {
         "label": "Medical Emergency (Crew Health)",
         "hazard_radius_km": 0.0,
-        "recommendation": "Routing prioritizes speed to reach port fastest for medical evacuation; nearest port is flagged for diversion.",
+        "recommendation": "Diverting to the port reachable fastest by sea for medical evacuation.",
     },
     "mechanical": {
         "label": "Mechanical Failure / Engine Fault",
         "hazard_radius_km": 0.0,
-        "recommendation": "Routing favors calmer, safer waters at moderate speed to reduce strain while the fault is contained.",
+        "recommendation": "Diverting to the nearest port reachable by sea, favouring calmer water at moderate speed to limit strain while the fault is contained.",
     },
 }
 
@@ -281,13 +281,37 @@ def replan_routes(request: schemas.ReplanRequest, db: Session = Depends(get_db))
 
     return results
 
+@app.get("/api/ports")
+def list_ports():
+    """
+    The port registry the router accepts, with the display name and grouping the
+    UI renders. Served so the frontend does not keep a second copy of the
+    coordinates that could drift out of step with the engine's.
+    """
+    return [
+        {
+            "key": key,
+            "name": meta["name"],
+            "lat": meta["lat"],
+            "lon": meta["lon"],
+            "country": meta["country"],
+            "region": meta["region"],
+        }
+        for key, meta in PORT_META.items()
+    ]
+
+
 @app.post("/api/routes/emergency")
 def emergency_reroute(request: schemas.EmergencyRequest, db: Session = Depends(get_db)):
     """
-    Emergency-driven rerouting: given a live emergency category and the
-    vessel's current position, recompute the best onward route to the
-    destination under that emergency's priorities (and, for hazard-type
-    emergencies, a marked danger zone around the vessel).
+    Emergency diversion: abandon the planned destination and make for the
+    nearest port reachable by sea from the vessel's current position, under the
+    priorities of the declared emergency.
+
+    The origin and destination stay eligible as diversion targets -- if the port
+    the vessel just left is genuinely the closest refuge, that is the right
+    answer. What the vessel must not do is divert into the hazard it is fleeing,
+    so for cyclone and piracy every port inside the marked zone is excluded.
     """
     if request.emergency_type not in EMERGENCY_PROFILES:
         raise HTTPException(status_code=400, detail="Unknown emergency type")
@@ -308,43 +332,51 @@ def emergency_reroute(request: schemas.EmergencyRequest, db: Session = Depends(g
     weights = EMERGENCY_PROFILES[request.emergency_type]
     meta = EMERGENCY_META[request.emergency_type]
     current_coord = (request.current_lat, request.current_lon)
-    goal_coord = PORTS[request.destination]
 
     # Mark a danger zone at the vessel's position for hazard-type emergencies
     # so the router actively diverts around it, not just re-weights the grid.
     hazard_zone = None
+    radius_km = meta["hazard_radius_km"]
     if request.emergency_type == "cyclone":
-        radius_deg = meta["hazard_radius_km"] / 111.0
         env_grid.inject_storm(
             center_lat=request.current_lat, center_lon=request.current_lon,
-            radius_deg=radius_deg, severity=1.6
+            radius_deg=radius_km / 111.0, severity=1.6
         )
-        hazard_zone = {"lat": request.current_lat, "lon": request.current_lon, "radius_km": meta["hazard_radius_km"]}
+        hazard_zone = {"lat": request.current_lat, "lon": request.current_lon, "radius_km": radius_km}
     elif request.emergency_type == "piracy":
-        radius_deg = meta["hazard_radius_km"] / 111.0
         env_grid.inject_piracy_threat(
             center_lat=request.current_lat, center_lon=request.current_lon,
-            radius_deg=radius_deg, severity=1.0
+            radius_deg=radius_km / 111.0, severity=1.0
         )
-        hazard_zone = {"lat": request.current_lat, "lon": request.current_lon, "radius_km": meta["hazard_radius_km"]}
+        hazard_zone = {"lat": request.current_lat, "lon": request.current_lon, "radius_km": radius_km}
 
+    # Ports swallowed by the hazard are no refuge. Straight-line distance is the
+    # right test here: the zone is a circle drawn on the map, not a sailing leg.
+    excluded = []
+    if radius_km > 0.0:
+        radius_nm = radius_km / 1.852
+        excluded = sorted(
+            name for name, (plat, plon) in PORTS.items()
+            if haversine_distance(request.current_lat, request.current_lon, plat, plon) <= radius_nm
+        )
+
+    hazard_fallback = False
     try:
-        ds = DSLite(current_coord, goal_coord, ship_profile, weights)
-        ds.initialize()
-        ds.compute_shortest_path()
-        path = ds.get_path()
+        diversion = nearest_port_by_sea(current_coord, ship_profile, weights, excluded=excluded)
     except RouteUnreachable as e:
-        raise HTTPException(status_code=422, detail=str(e))
+        if not excluded:
+            raise HTTPException(status_code=422, detail=str(e))
+        # Everything clear of the hazard was unreachable. Surfacing the port
+        # inside the zone with a flag beats returning nothing in an emergency.
+        hazard_fallback = True
+        try:
+            diversion = nearest_port_by_sea(current_coord, ship_profile, weights)
+        except RouteUnreachable as inner:
+            raise HTTPException(status_code=422, detail=str(inner))
 
-    metrics = get_path_metrics(path, ship_profile)
-
-    nearest_port_name, nearest_port_coord = min(
-        PORTS.items(),
-        key=lambda kv: haversine_distance(request.current_lat, request.current_lon, kv[1][0], kv[1][1])
-    )
-    nearest_port_distance_nm = round(
-        haversine_distance(request.current_lat, request.current_lon, nearest_port_coord[0], nearest_port_coord[1]), 1
-    )
+    port_key = diversion["port"]
+    port_meta = PORT_META[port_key]
+    metrics = get_path_metrics(diversion["path"], ship_profile)
 
     return {
         "emergency_type": request.emergency_type,
@@ -352,10 +384,24 @@ def emergency_reroute(request: schemas.EmergencyRequest, db: Session = Depends(g
         "recommendation": meta["recommendation"],
         "weights": weights,
         "hazard_zone": hazard_zone,
-        "nearest_port": {
-            "name": nearest_port_name,
-            "distance_nm": nearest_port_distance_nm
+        "diverted": True,
+        "origin": request.origin,
+        "destination": request.destination,
+        "divert_port": {
+            "key": port_key,
+            "name": port_meta["name"],
+            "country": port_meta["country"],
+            "lat": port_meta["lat"],
+            "lon": port_meta["lon"],
+            "distance_nm": diversion["distance_nm"],
+            "is_origin": port_key == request.origin,
+            "is_destination": port_key == request.destination,
         },
+        "excluded_ports": excluded,
+        "hazard_fallback": hazard_fallback,
+        # Retained under its old name so the existing dock keeps rendering until
+        # the emergency panel is rebuilt around divert_port.
+        "nearest_port": {"name": port_meta["name"], "distance_nm": diversion["distance_nm"]},
         "current_position": {"lat": request.current_lat, "lon": request.current_lon},
         **metrics
     }

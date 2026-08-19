@@ -15,19 +15,26 @@ Row 0 is the northern edge, column 0 the western edge.
 import math
 from typing import Tuple
 
-# Geographical bounds of the modelled basin
-WEST = 40.0
-EAST = 110.0
-SOUTH = -25.0
-NORTH = 25.0
+# Geographical bounds of the modelled basin.
+#
+# The domain spans the whole Indian Ocean rim served by the port registry, from
+# the Mozambique and KwaZulu-Natal coast in the southwest to the Java Sea in the
+# southeast, and north far enough to take in the Persian Gulf and the Makran
+# coast. The earlier 40-110E / 25S-25N box clipped seven registry ports
+# (Durban, Richards Bay, Maputo, Mombasa, Dar es Salaam, Gwadar, Jebel Ali),
+# which made them unreachable as emergency diversion targets.
+WEST = 28.0
+EAST = 112.0
+SOUTH = -34.0
+NORTH = 28.0
 
 # Cell size in degrees. 0.25 deg ~ 27 km, fine enough to resolve the Indian
 # west coast, the Gulf of Mannar and the Malacca approaches. At the previous
 # 1 deg resolution a land mask could not represent those at all.
 CELL_DEG = 0.25
 
-WIDTH = int(round((EAST - WEST) / CELL_DEG))    # 280 columns
-HEIGHT = int(round((NORTH - SOUTH) / CELL_DEG))  # 200 rows
+WIDTH = int(round((EAST - WEST) / CELL_DEG))    # 336 columns
+HEIGHT = int(round((NORTH - SOUTH) / CELL_DEG))  # 248 rows
 
 
 def grid_to_coord(row: int, col: int) -> Tuple[float, float]:

@@ -1,4 +1,5 @@
-import React, { createContext, useState, useEffect, useContext } from 'react';
+import React, { createContext, useState, useEffect, useContext, useMemo } from 'react';
+import { haversineNm, PORT_ZONE_NM } from '../utils/geo';
 
 const AppContext = createContext();
 
@@ -36,8 +37,19 @@ export const AppProvider = ({ children }) => {
   // Weather layer raster data for Map visualization
   const [weatherLayers, setWeatherLayers] = useState(null);
 
-  // Ports configurations
-  const portsList = ["JNPT", "Colombo", "Singapore", "Aden", "Port Louis"];
+  // Port registry, served by the backend so the coordinates live in one place
+  // and cannot drift out of step with the router's. The fallback keeps the
+  // selectors usable if the API is unreachable.
+  const [ports, setPorts] = useState([]);
+  const portsList = ports.length
+    ? ports.map((p) => p.key)
+    : ["JNPT", "Colombo", "Singapore", "Aden", "Port Louis"];
+
+  const portByKey = useMemo(() => {
+    const m = {};
+    ports.forEach((p) => { m[p.key] = p; });
+    return m;
+  }, [ports]);
 
   // --- Emergency Rerouting (Step 2/3: select scenario -> optimal route from live position) ---
   const emergencyTypes = [
@@ -54,6 +66,16 @@ export const AppProvider = ({ children }) => {
   // Open-Meteo Live Environmental Telemetry State
   const [liveEnvironment, setLiveEnvironment] = useState(null);
   const [envSyncing, setEnvSyncing] = useState(false);
+
+  // Fetch the port registry
+  const fetchPorts = async () => {
+    try {
+      const res = await fetch('http://127.0.0.1:8000/api/ports');
+      if (res.ok) setPorts(await res.json());
+    } catch (err) {
+      console.error("Error fetching port registry:", err);
+    }
+  };
 
   // Fetch ships registry on load
   const fetchShips = async () => {
@@ -124,6 +146,7 @@ export const AppProvider = ({ children }) => {
 
   useEffect(() => {
     fetchShips();
+    fetchPorts();
     fetchWeatherLayers();
     fetchEnvironment(undefined, undefined, 'JNPT');
   }, []);
@@ -378,6 +401,42 @@ export const AppProvider = ({ children }) => {
     setEmergencyError(null);
   };
 
+  // Whether an emergency may be declared right now.
+  //
+  // A vessel sitting at its berth is not mid-voyage, so there is nothing to
+  // divert: the button stays disabled within PORT_ZONE_NM of either the origin
+  // or the destination. Once under way it is enabled, and the nearest port may
+  // legitimately turn out to be the origin or the destination itself.
+  const emergencyGate = useMemo(() => {
+    const active = routes && routes[selectedRouteKey];
+    if (!active) {
+      return { enabled: false, reason: "Calculate a voyage before declaring an emergency." };
+    }
+
+    const wps = active.waypoints || [];
+    const pos = wps[Math.min(currentVesselIndex, wps.length - 1)] || wps[0];
+    const o = portByKey[origin];
+    const d = portByKey[destination];
+    if (!pos || !o || !d) return { enabled: true, reason: null };
+
+    const dOrigin = haversineNm(pos[0], pos[1], o.lat, o.lon);
+    const dDest = haversineNm(pos[0], pos[1], d.lat, d.lon);
+
+    if (dOrigin <= PORT_ZONE_NM) {
+      return {
+        enabled: false,
+        reason: `Vessel is still in the ${o.name} port zone (${Math.round(dOrigin)} nm). Get under way to enable emergency diversion.`,
+      };
+    }
+    if (dDest <= PORT_ZONE_NM) {
+      return {
+        enabled: false,
+        reason: `Vessel is on final approach to ${d.name} (${Math.round(dDest)} nm). Emergency diversion is disabled.`,
+      };
+    }
+    return { enabled: true, reason: null };
+  }, [routes, selectedRouteKey, currentVesselIndex, origin, destination, portByKey]);
+
   // Simulation timer logic for Vessel Telemetry progress
   useEffect(() => {
     let timer;
@@ -434,7 +493,10 @@ export const AppProvider = ({ children }) => {
       isPlayingTelemetry,
       setIsPlayingTelemetry,
       weatherLayers,
+      ports,
       portsList,
+      portByKey,
+      emergencyGate,
       fetchShips,
       emergencyTypes,
       emergencyType,

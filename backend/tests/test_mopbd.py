@@ -137,8 +137,53 @@ def test_jnpt_colombo_route_stays_at_sea():
     assert_route_at_sea(ds.get_path(), "JNPT->Colombo")
 
 
+def _port_cycle_pairs():
+    """
+    A Hamiltonian cycle over the sorted registry, so every port is exercised
+    once as an origin and once as a destination in len(PORTS) solves rather
+    than the len(PORTS) * (len(PORTS) - 1) an exhaustive sweep would cost.
+    """
+    names = sorted(PORTS)
+    return [(names[i], names[(i + 1) % len(names)]) for i in range(len(names))]
+
+
+# Legs that thread a strait or channel narrow enough that a coarsened grid, a
+# regressed diagonal-squeeze rule or a bad port fix would quietly close it.
+# These are the failures the cycle alone is not guaranteed to catch.
+HARD_LEGS = [
+    ("Gwadar", "Jebel Ali"),          # Strait of Hormuz
+    ("JNPT", "Jebel Ali"),            # Arabian Sea -> Hormuz -> the Gulf
+    ("Chennai", "Kochi"),             # around Sri Lanka, past the Palk Strait
+    ("Chattogram", "Tanjung Priok"),  # Bay of Bengal -> Malacca -> Java Sea
+    ("Singapore", "Tanjung Priok"),   # Singapore Strait -> Java Sea
+    ("Mombasa", "Port Louis"),        # across the mouth of the Mozambique Channel
+    ("Durban", "Mumbai"),             # Southern Africa -> Arabian Sea
+    ("Maputo", "Salalah"),            # Mozambique Channel -> Arabian Peninsula
+]
+
+REPRESENTATIVE_PAIRS = list(dict.fromkeys(_port_cycle_pairs() + HARD_LEGS))
+
+
+@pytest.mark.parametrize("origin,destination", REPRESENTATIVE_PAIRS)
+def test_representative_port_pairs_stay_at_sea(origin, destination):
+    """
+    Every port reachable by sea from its neighbour in the cycle, plus the named
+    hard legs. This is the sweep that runs by default.
+    """
+    ds = DSLite(PORTS[origin], PORTS[destination], SHIP_PROFILE, BALANCED)
+    ds.initialize()
+    ds.compute_shortest_path()
+    assert_route_at_sea(ds.get_path(), f"{origin}->{destination}")
+
+
+@pytest.mark.slow
 @pytest.mark.parametrize("origin,destination", list(itertools.permutations(PORTS, 2)))
 def test_every_port_pair_stays_at_sea(origin, destination):
+    """
+    The exhaustive matrix. Deselected by default (see pytest.ini): at 25 ports
+    it is 600 full solves and runs for roughly twenty minutes. Run it with
+    `pytest -m slow` after changing the grid, the land mask or the port fixes.
+    """
     ds = DSLite(PORTS[origin], PORTS[destination], SHIP_PROFILE, BALANCED)
     ds.initialize()
     ds.compute_shortest_path()
@@ -200,6 +245,14 @@ def test_severe_storm_exercises_the_underconsistent_repair_branch(pristine_weath
     iterates predecessors plus the vertex itself; since successors now come from
     a precomputed tuple table, concatenating a list onto them raised TypeError.
     A mild storm can terminate before reaching it, so this uses a severe one.
+
+    This also covers the port-approach discs that move when replan re-roots the
+    search: cost() waives the coastal standoff penalty inside them, so moving
+    s_start changes edge costs for cells that never appear in changed_cells.
+    Repairing only changed_cells stranded those vertices and the greedy
+    extraction stalled beside the vessel. Asserting the discs end up with finite
+    g would be wrong -- D* Lite leaves vertices off the optimal path unexpanded
+    by design -- so the extraction below is what pins the behaviour.
     """
     ds = DSLite(PORTS["JNPT"], PORTS["Colombo"], SHIP_PROFILE, BALANCED)
     ds.initialize()

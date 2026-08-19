@@ -484,8 +484,8 @@ export default function MapComponent() {
   return (
     <div className="relative flex-1 h-[55vh] lg:h-auto border-b lg:border-b-0 lg:border-r border-slate-200/80 bg-slate-100 font-sans">
       <MapContainer
-        center={[6.5, 75.0]}
-        zoom={4}
+        center={[-2.0, 70.0]}
+        zoom={3}
         className="w-full h-full"
         zoomControl={false}
       >
@@ -614,6 +614,30 @@ export default function MapComponent() {
               </div>
             </Popup>
           </Polyline>
+        )}
+
+        {/* Emergency diversion target */}
+        {emergencyRoute && emergencyRoute.divert_port && (
+          <Circle
+            center={[emergencyRoute.divert_port.lat, emergencyRoute.divert_port.lon]}
+            radius={55000}
+            pathOptions={{
+              color: '#E11D48',
+              fillColor: '#E11D48',
+              fillOpacity: 0.55,
+              weight: 3
+            }}
+          >
+            <Popup>
+              <div className="text-xs font-sans text-slate-800 p-1">
+                <p className="font-bold text-sm uppercase mb-1 text-rose-600">Diversion Port</p>
+                <p className="text-slate-900 font-bold">{emergencyRoute.divert_port.name}</p>
+                <p className="text-slate-600">{emergencyRoute.divert_port.country}</p>
+                <p className="text-slate-600 mt-1">Distance: <span className="text-slate-900 font-bold">{emergencyRoute.divert_port.distance_nm} nm</span></p>
+                <p className="text-slate-600">ETA: <span className="text-slate-900 font-bold">{emergencyRoute.total_time} h</span></p>
+              </div>
+            </Popup>
+          </Circle>
         )}
 
         {/* Emergency hazard zone */}
